@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # ============================================================
 # AZIZA - Distributed Automotive ECU Simulation
 # main.py — Entry point and real-time simulation loop
@@ -72,10 +71,12 @@ class AZIZASimulation:
         self.safety_layer = SafetyLayer(self.engine_ecu, self.brake_ecu)
         self.ai_agent     = AnomalyDetector()
         self.blynk        = BlynkClient(self.engine_ecu)
+        server_port = int(os.getenv("PORT", "8765"))
         self.server       = AZIZAServer(
             engine_ecu=self.engine_ecu,
             brake_ecu=self.brake_ecu,
             car_control=self.car_control,
+            port=server_port,
         )
         self.server.start()
 
@@ -90,7 +91,7 @@ class AZIZASimulation:
         signal.signal(signal.SIGTERM, self._handle_shutdown)
 
         print(f"\n{config.LOG_PREFIX['AZIZA']} System ready. Starting simulation loop.")
-        print(f"{config.LOG_PREFIX['AZIZA']} Dashboard → http://127.0.0.1:8765\n")
+        print(f"{config.LOG_PREFIX['AZIZA']} Dashboard → http://127.0.0.1:{server_port}\n")
 
     def run(self):
         while self._running:
@@ -155,6 +156,8 @@ class AZIZASimulation:
                 **approved_state,
                 "ai_risk":    ai_report.risk_level,
                 "ai_score":   ai_report.risk_score,
+                "ai_anomalies": list(ai_report.anomalies),
+                "ai_suggestions": list(ai_report.suggestions),
                 # Body ECU (legacy HVAC / ambient lighting)
                 "lights_on":  self._body_state.get("lighting_on", False),
                 "fan_speed":  self._body_state.get("fan_speed", 0),
