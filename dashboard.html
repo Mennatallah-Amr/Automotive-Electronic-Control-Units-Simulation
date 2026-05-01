@@ -318,6 +318,9 @@ hr.div { border:none; border-top:1px solid var(--border); margin:14px 0; }
 
 /* highlight brake events */
 .bus-event.brake-evt .be-data { color:var(--danger); opacity:1; }
+.bus-event.gear-evt .be-data { color:var(--ok); opacity:1; }
+.be-dir.gear { background:rgba(0,230,118,.14); color:var(--ok); }
+.be-id.gear { color:var(--ok); }
 
 /* ── Brake detail modal ── */
 #brakeModal {
@@ -377,6 +380,14 @@ hr.div { border:none; border-top:1px solid var(--border); margin:14px 0; }
 .modal-event.safety { border-color:var(--purple); }
 .modal-event.ai     { border-color:#818cf8; }
 .modal-event.brake  { border-color:var(--danger); color:var(--danger); }
+.modal-event.gear   { border-color:var(--ok); color:var(--ok); }
+
+#gearModal { display:none; position:fixed; inset:0; z-index:8000; background:rgba(0,0,0,.8); align-items:center; justify-content:center; }
+#gearModal.open { display:flex; }
+#gearModal .modal-box { border-color:var(--ok); box-shadow:0 0 60px rgba(0,230,118,.2); }
+#gearModal .modal-head { background:rgba(0,230,118,.07); border-bottom:1px solid rgba(0,230,118,.25); }
+#gearModal .modal-head h2 { color:var(--ok); }
+#gearModal .modal-close:hover { border-color:var(--ok); color:var(--ok); }
 
 .modal-footer {
   padding:12px 20px; border-top:1px solid var(--border);
@@ -489,6 +500,35 @@ hr.div { border:none; border-top:1px solid var(--border); margin:14px 0; }
 .lock-btn.lock-all   { border-color:var(--ok);     color:var(--ok); }
 .lock-btn.unlock-all { border-color:var(--danger);  color:var(--danger); }
 .lock-btn:hover { opacity:.8; }
+
+/* Gearbox */
+.gear-status-row {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:8px;
+}
+.gear-chip {
+  display:inline-block;
+  min-width:34px;
+  text-align:center;
+  padding:3px 10px;
+  border:1px solid var(--border2);
+  border-radius:2px;
+  font-family:var(--mono);
+  font-size:.85rem;
+  color:var(--dim);
+}
+.gear-chip.active {
+  color:var(--ok);
+  border-color:var(--ok);
+  background:rgba(0,230,118,.07);
+  text-shadow:0 0 8px rgba(0,230,118,.35);
+}
+.gear-grid {
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0, 1fr));
+  gap:6px;
+}
+.gear-btn { padding:7px 0; margin:0; font-size:.72rem; }
 
 /* ── Car control — simple live outline (top-down) ── */
 .cc-pbody { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; }
@@ -768,6 +808,31 @@ hr.div { border:none; border-top:1px solid var(--border); margin:14px 0; }
   </div>
 </div>
 
+<div id="gearModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span style="font-size:1.35rem">⚙️</span>
+      <h2>GEARBOX MODE SWITCH</h2>
+      <button class="modal-close" onclick="closeGearModal()">✕ CLOSE</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-section">
+        <h3>Shift Snapshot</h3>
+        <div class="modal-kv" id="mGearSnap"></div>
+      </div>
+      <div class="modal-section">
+        <h3>Transmission State</h3>
+        <div class="modal-kv" id="mGearState"></div>
+      </div>
+      <div class="modal-section" style="grid-column:1/-1">
+        <h3>Bus Activity During Shift</h3>
+        <div class="modal-events" id="mGearBusEvents"></div>
+      </div>
+    </div>
+    <div class="modal-footer" id="mGearFooter"></div>
+  </div>
+</div>
+
 <!-- ── Main layout ───────────────────────────────────── -->
 <div class="layout">
 
@@ -866,6 +931,21 @@ hr.div { border:none; border-top:1px solid var(--border); margin:14px 0; }
             <span style="font-size:.6rem;color:var(--dim)">km/h</span>
           </div>
           <button class="btn" style="margin-top:10px;width:100%" onclick="applySpeed()">Apply Speed</button>
+        </div>
+
+        <!-- Automatic Gearbox -->
+        <div class="control-block">
+          <span class="label" style="display:block;margin-bottom:8px">Automatic Gearbox</span>
+          <div class="gear-status-row">
+            <span style="font-size:.65rem;color:var(--dim);letter-spacing:.08em">Current Mode</span>
+            <span class="gear-chip" id="gearModeChip">P</span>
+          </div>
+          <div class="gear-grid">
+            <button class="btn gear-btn" id="gearBtnP" onclick="setGearMode('P')">PARK</button>
+            <button class="btn gear-btn" id="gearBtnR" onclick="setGearMode('R')">REVERSE</button>
+            <button class="btn gear-btn" id="gearBtnN" onclick="setGearMode('N')">NEUTRAL</button>
+            <button class="btn gear-btn" id="gearBtnD" onclick="setGearMode('D')">DRIVE</button>
+          </div>
         </div>
 
         <hr class="div"/>
@@ -1268,6 +1348,7 @@ function updateDashboard(s) {
   updateWindowUI(s);
   updateLightUI(s);
   updateDoorUI(s);
+  updateGearboxUI(s);
 
   // Build synthetic bus events from state if server doesn't send them
   // (fallback — real events come via msg.events)
@@ -1298,6 +1379,7 @@ const MAX_EVENTS = 30;
 
 // Store last brake event for modal
 let lastBrakeEvent = null;
+let lastGearEvent = null;
 
 function appendBusEvents(events) {
   if (!events || !events.length) return;
@@ -1328,6 +1410,9 @@ function appendBusEvents(events) {
     } else if (ev.bus === 'BRAKE') {
       cls = 'brake-evt'; idCls = 'brake'; dirCls = 'brk';
       lastBrakeEvent = { ev, state: {...lastState}, t };
+    } else if (ev.bus === 'GEAR') {
+      cls = 'gear-evt'; idCls = 'gear'; dirCls = 'gear';
+      lastGearEvent = { ev, state: {...lastState}, t };
     }
 
     const html = `<div class="bus-event ${cls}">
@@ -1416,6 +1501,9 @@ function closeModal() {
 document.getElementById('brakeModal').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
 });
+document.getElementById('gearModal').addEventListener('click', function(e) {
+  if (e.target === this) closeGearModal();
+});
 
 function kvRows(rows) {
   return rows.map(([k, v, cls]) =>
@@ -1479,6 +1567,78 @@ function cruiseOff() {
 }
 function applySpeed() {
   send({ action: 'set_target_speed', value: parseInt(document.getElementById('targetSpeed').value) });
+}
+
+// ══════════════════════════════════════════════════════════
+//  Automatic gearbox
+// ══════════════════════════════════════════════════════════
+let currentGearMode = 'P';
+function setGearMode(mode) {
+  const next = String(mode || '').toUpperCase();
+  if (!['P', 'R', 'N', 'D'].includes(next)) return;
+  const prev = currentGearMode || 'P';
+  if (next === prev) return;
+
+  currentGearMode = next;
+  lastState.gear_mode = next;
+  updateGearboxUI(lastState);
+
+  send({ action: 'gearbox_cmd', mode: next });
+  appendBusEvents([
+    {bus:'GEAR', id:'GEAR_SHIFT', dir:'GEAR', data:{from: prev, to: next, source:'DASHBOARD'}, ts: Date.now()/1000},
+    {bus:'CAN',  id:'0x330', dir:'TX', data:{gear_from: prev, gear_to: next}, ts: Date.now()/1000},
+    {bus:'LIN',  id:'LIN_GEARBOX', dir:'REQ', data:{mode: next}, ts: Date.now()/1000},
+  ]);
+  setTimeout(() => openGearboxModal(prev, next), 140);
+}
+
+function updateGearboxUI(s) {
+  const mode = String((s.gear_mode || currentGearMode || 'P')).toUpperCase();
+  currentGearMode = ['P', 'R', 'N', 'D'].includes(mode) ? mode : 'P';
+  const chip = document.getElementById('gearModeChip');
+  if (chip) {
+    chip.textContent = currentGearMode;
+    chip.classList.add('active');
+  }
+  ['P','R','N','D'].forEach(function (m) {
+    const btn = document.getElementById('gearBtn' + m);
+    if (btn) btn.classList.toggle('active', m === currentGearMode);
+  });
+}
+
+function openGearboxModal(prev, next) {
+  const s = lastState || {};
+  const speed = Number(s.speed || 0);
+  const throttle = Number(s.throttle || 0);
+  const braking = Number(s.brake_pressure || 0);
+  const shiftQuality = speed > 30 && (next === 'P' || next === 'R') ? 'RISKY SHIFT' : 'NORMAL';
+
+  document.getElementById('mGearSnap').innerHTML = kvRows([
+    ['From', prev, ''],
+    ['To', next, next === 'D' ? 'ok' : next === 'R' ? 'warn' : ''],
+    ['Vehicle speed', speed.toFixed(1) + ' km/h', speed > 30 ? 'warn' : 'ok'],
+    ['Brake pressure', braking.toFixed(2), braking > 0.2 ? 'ok' : ''],
+  ]);
+  document.getElementById('mGearState').innerHTML = kvRows([
+    ['Current mode', currentGearMode, 'ok'],
+    ['Engine state', s.engine_state || 'NORMAL', ''],
+    ['Throttle', throttle.toFixed(3), throttle > 0.3 ? 'warn' : ''],
+    ['Shift quality', shiftQuality, shiftQuality === 'RISKY SHIFT' ? 'danger' : 'ok'],
+  ]);
+  document.getElementById('mGearBusEvents').innerHTML = [
+    `[GEAR] REQUEST mode change ${prev} → ${next}`,
+    `[CAN] TX id=0x330 payload={gear_from:${prev}, gear_to:${next}}`,
+    `[LIN] MASTER→LIN_GEARBOX REQ={mode:${next}}`,
+    `[LIN] LIN_GEARBOX→MASTER RSP={ack:OK, mode:${next}}`,
+  ].map(msg => `<div class="modal-event gear">${esc(msg)}</div>`).join('');
+  document.getElementById('mGearFooter').innerHTML =
+    `<span>Gearbox switch at cycle <b style="color:var(--accent)">${String(cycleN).padStart(4,'0')}</b></span>` +
+    `<span>Transmission mode is now <b style="color:var(--ok)">${esc(currentGearMode)}</b></span>`;
+  document.getElementById('gearModal').classList.add('open');
+}
+
+function closeGearModal() {
+  document.getElementById('gearModal').classList.remove('open');
 }
 
 let _wsWarned = false;
