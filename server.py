@@ -19,7 +19,7 @@ from config import (
     LIGHT_HEAD, LIGHT_INTERIOR, LIGHT_HAZARD, LIGHT_FOG,
     LIGHT_OFF, LIGHT_ON, LIGHT_DIM,
     DOOR_FL, DOOR_FR, DOOR_RL, DOOR_RR, DOOR_ALL,
-    DOOR_UNLOCK, DOOR_LOCK,
+    DOOR_UNLOCK, DOOR_LOCK, GEAR_PARK,
 )
 
 
@@ -218,6 +218,13 @@ class AZIZAServer:
                 command = int(cmd.get("command", DOOR_LOCK)),
             )
 
+        # ── Gearbox ───────────────────────────────────────────────────
+        elif action == "gearbox_cmd" and self.car_control:
+            # cmd = {action, mode: "P"/"R"/"N"/"D"}
+            self.car_control.command_gearbox(
+                mode=str(cmd.get("mode", GEAR_PARK)),
+            )
+
     # ------------------------------------------------------------------
     # Push state to all connected WebSocket clients
     # ------------------------------------------------------------------
@@ -268,3 +275,4 @@ class AZIZAServer:
         _real_stdout.write(f"[SERVER] WebSocket → ws://localhost:{self._port}/ws\n")
         _real_stdout.write(f"[SERVER] Bound to 0.0.0.0:{self._port} OK\n")
         _real_stdout.flush()
+
