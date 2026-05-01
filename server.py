@@ -44,6 +44,8 @@ class AZIZAServer:
         server_ref = self
 
         class Handler(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
             def log_message(self, fmt, *args):
                 pass  # Silence access logs
 
@@ -62,7 +64,7 @@ class AZIZAServer:
                         self.end_headers()
                         self.wfile.write(b"dashboard.html not found")
 
-                elif self.path == "/ws":
+                elif self.path.startswith("/ws"):
                     key = self.headers.get("Sec-WebSocket-Key", "")
                     accept = base64.b64encode(
                         hashlib.sha1(
