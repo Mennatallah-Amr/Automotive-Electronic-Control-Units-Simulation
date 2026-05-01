@@ -36,6 +36,10 @@ class CarControlECU:
             "RR": True,
             "all_locked": True,
         }
+        self.gearbox = {
+            "mode": config.GEAR_PARK,
+            "last_change_ts": 0.0,
+        }
 
         # --- Commands from external system (server / UI) ---
         self._commands = []
@@ -92,6 +96,13 @@ class CarControlECU:
         self.door_locks["all_locked"] = all(
             self.door_locks[k] for k in ("FL", "FR", "RL", "RR")
         )
+
+    def command_gearbox(self, mode: str):
+        mode = str(mode).upper()
+        if mode not in config.GEAR_SEQUENCE:
+            return
+        self.gearbox["mode"] = mode
+        self.lin_bus_request(config.LIN_SLAVE_GEARBOX, {"mode": mode})
 
     # ========================================================
     # CAN MESSAGE PROCESSING
@@ -150,7 +161,8 @@ class CarControlECU:
         return {
             "windows": self.windows,
             "lights": self.lights,
-            "door_locks": self.door_locks
+            "door_locks": self.door_locks,
+            "gearbox": self.gearbox,
         }
 
     # ========================================================
