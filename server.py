@@ -225,6 +225,9 @@ class AZIZAServer:
                 mode=str(cmd.get("mode", GEAR_PARK)),
             )
 
+        elif action == "steering_cmd" and self.car_control:
+            self.car_control.command_steering(float(cmd.get("angle_deg", 0.0)))
+
     # ------------------------------------------------------------------
     # Push state to all connected WebSocket clients
     # ------------------------------------------------------------------
@@ -275,4 +278,3 @@ class AZIZAServer:
         _real_stdout.write(f"[SERVER] WebSocket → ws://localhost:{self._port}/ws\n")
         _real_stdout.write(f"[SERVER] Bound to 0.0.0.0:{self._port} OK\n")
         _real_stdout.flush()
-
