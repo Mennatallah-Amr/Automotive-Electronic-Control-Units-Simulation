@@ -1,0 +1,4 @@
+# AZIZA — Python requirements
+# Install with: pip install -r requirements.txt
+
+blynklib

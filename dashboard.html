@@ -1,0 +1,1761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AZIZA — ECU Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700;900&display=swap" rel="stylesheet"/>
+<style>
+/* ── Variables ── */
+:root {
+  --bg:       #07090c;
+  --bg2:      #0c1117;
+  --bg3:      #111820;
+  --border:   #1a2835;
+  --border2:  #243444;
+  --accent:   #00d4ff;
+  --accent2:  #ff6b00;
+  --danger:   #ff2a2a;
+  --warn:     #ffb300;
+  --ok:       #00e676;
+  --purple:   #c084fc;
+  --text:     #bdd4e2;
+  --dim:      #3d5567;
+  --mono:     'Share Tech Mono', monospace;
+  --sans:     'Barlow Condensed', sans-serif;
+}
+
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+
+body {
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  min-height:100vh;
+  overflow-x:hidden;
+}
+
+/* scanline texture */
+body::after {
+  content:'';
+  position:fixed; inset:0; pointer-events:none; z-index:9000;
+  background:repeating-linear-gradient(0deg,
+    transparent 0px, transparent 3px,
+    rgba(0,212,255,0.012) 3px, rgba(0,212,255,0.012) 4px);
+}
+
+/* ── Typography helpers ── */
+.label {
+  font-family:var(--sans);
+  font-weight:700;
+  font-size:0.58rem;
+  letter-spacing:.22em;
+  color:var(--dim);
+  text-transform:uppercase;
+}
+
+/* ── Header ── */
+header {
+  display:flex; align-items:center; gap:20px;
+  padding:12px 24px;
+  background:var(--bg2);
+  border-bottom:1px solid var(--border);
+  position:sticky; top:0; z-index:500;
+}
+
+.logo {
+  font-family:var(--sans); font-weight:900; font-size:1.9rem;
+  letter-spacing:.28em; color:var(--accent);
+  text-shadow:0 0 24px rgba(0,212,255,.45);
+  white-space:nowrap;
+}
+.logo small {
+  display:block; font-weight:300; font-size:.65rem;
+  letter-spacing:.1em; color:var(--dim); margin-top:-4px;
+}
+
+.hdr-sep { flex:1; }
+
+.cycle-box {
+  font-family:var(--mono); font-size:.7rem; color:var(--dim);
+  text-align:right; line-height:1.7;
+}
+.cycle-box b { color:var(--accent); font-size:1rem; }
+
+.ws-pill {
+  display:flex; align-items:center; gap:7px;
+  padding:5px 14px; border-radius:2px;
+  border:1px solid var(--border2);
+  font-family:var(--mono); font-size:.65rem; color:var(--dim);
+  background:var(--bg3);
+  transition:all .3s;
+}
+.ws-dot {
+  width:7px; height:7px; border-radius:50%;
+  background:var(--danger); box-shadow:0 0 6px var(--danger);
+  transition:all .3s;
+}
+.ws-dot.on { background:var(--ok); box-shadow:0 0 10px var(--ok); animation:pulse-ok 2s infinite; }
+@keyframes pulse-ok { 0%,100%{opacity:1} 50%{opacity:.55} }
+
+/* ── Main layout ── */
+.layout {
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  gap:14px;
+  padding:18px 20px;
+  max-width:1500px;
+  margin:0 auto;
+}
+
+/* ── Panel ── */
+.panel {
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:3px;
+  position:relative;
+  overflow:hidden;
+}
+.panel::before {
+  content:''; position:absolute; top:0;left:0;right:0; height:2px;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);
+  opacity:.3;
+}
+.panel.warn-active::before { background:linear-gradient(90deg,transparent,var(--warn),transparent); opacity:.9; }
+.panel.danger-active::before { background:linear-gradient(90deg,transparent,var(--danger),transparent); opacity:1; animation:flash-danger 1s infinite; }
+@keyframes flash-danger { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.p-head {
+  padding:11px 16px 9px;
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:8px;
+}
+.p-head .label { margin:0; }
+.p-head .dot {
+  width:5px; height:5px; border-radius:50%;
+  background:var(--accent); margin-left:auto;
+}
+
+.p-body { padding:14px 16px; }
+
+/* ── Gauges row ── */
+.row-gauges {
+  grid-column:1/-1;
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:14px;
+}
+
+.gauge-card {
+  background:var(--bg2); border:1px solid var(--border); border-radius:3px;
+  padding:16px 14px 12px; text-align:center; position:relative; overflow:hidden;
+  transition:border-color .3s;
+}
+.gauge-card::before {
+  content:''; position:absolute; top:0;left:0;right:0; height:2px;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent); opacity:.25;
+  transition:opacity .3s;
+}
+.gauge-card.warn  { border-color:rgba(255,179,0,.35); }
+.gauge-card.warn::before  { background:linear-gradient(90deg,transparent,var(--warn),transparent); opacity:.8; }
+.gauge-card.danger { border-color:rgba(255,42,42,.5); animation:flash-danger 1s infinite; }
+.gauge-card.danger::before { background:linear-gradient(90deg,transparent,var(--danger),transparent); opacity:1; }
+
+.gauge-label { font-family:var(--sans); font-weight:700; font-size:.58rem; letter-spacing:.2em; color:var(--dim); text-transform:uppercase; margin-bottom:8px; }
+
+/* SVG arc */
+.arc-wrap { width:96px; height:52px; margin:0 auto 6px; position:relative; }
+.arc-wrap svg { width:100%; height:100%; }
+
+.g-val {
+  font-family:var(--mono); font-size:2.4rem; line-height:1;
+  color:var(--accent); transition:color .4s;
+}
+.g-val.warn   { color:var(--warn);   text-shadow:0 0 14px rgba(255,179,0,.5); }
+.g-val.danger { color:var(--danger); text-shadow:0 0 14px rgba(255,42,42,.5); animation:flash-danger 1s infinite; }
+.g-val.ok     { color:var(--ok);     text-shadow:0 0 10px rgba(0,230,118,.4); }
+
+.g-unit { font-size:.65rem; color:var(--dim); letter-spacing:.08em; margin-top:3px; }
+
+.state-badge {
+  display:inline-block; padding:4px 14px; border-radius:2px;
+  font-family:var(--mono); font-size:.85rem; border:1px solid currentColor;
+  letter-spacing:.08em; margin-top:6px; transition:all .3s;
+}
+.s-NORMAL  { color:var(--ok);     border-color:var(--ok);     text-shadow:0 0 8px var(--ok); }
+.s-REDUCED { color:var(--warn);   border-color:var(--warn);   text-shadow:0 0 8px var(--warn); }
+.s-LIMITED { color:var(--danger); border-color:var(--danger); text-shadow:0 0 8px var(--danger); animation:flash-danger .8s infinite; }
+.r-NORMAL     { color:var(--ok);     border-color:var(--ok); }
+.r-SUSPICIOUS { color:var(--warn);   border-color:var(--warn); }
+.r-CRITICAL   { color:var(--danger); border-color:var(--danger); animation:flash-danger .8s infinite; }
+
+/* ── Chart ── */
+.row-mid {
+  grid-column:1/-1;
+  display:grid;
+  grid-template-columns:2fr 1fr;
+  gap:14px;
+}
+
+/* ── Controls ── */
+.control-block { margin-bottom:16px; }
+.control-block .label { display:block; margin-bottom:9px; }
+
+.btn {
+  font-family:var(--sans); font-weight:700; font-size:.8rem;
+  letter-spacing:.14em; text-transform:uppercase;
+  padding:9px 16px; border:1px solid var(--border2);
+  background:transparent; color:var(--text); cursor:pointer;
+  border-radius:2px; transition:all .18s;
+  margin:0 6px 6px 0;
+}
+.btn:hover { border-color:var(--accent); color:var(--accent); background:rgba(0,212,255,.06); }
+.btn.active { border-color:var(--ok); color:var(--ok); background:rgba(0,230,118,.07); }
+
+/* ── BRAKE BUTTON ── */
+#btnBrake {
+  width:100%; padding:14px; margin:0 0 8px 0;
+  font-size:1rem; letter-spacing:.18em;
+  border:2px solid var(--danger);
+  color:var(--danger);
+  background:rgba(255,42,42,.07);
+  position:relative; overflow:hidden;
+  transition:all .15s;
+}
+#btnBrake:hover { background:rgba(255,42,42,.16); box-shadow:0 0 20px rgba(255,42,42,.3); }
+#btnBrake.pressed {
+  background:var(--danger); color:#fff;
+  box-shadow:0 0 30px rgba(255,42,42,.7);
+  animation:brake-pulse .4s ease;
+}
+@keyframes brake-pulse {
+  0%   { transform:scale(1); }
+  30%  { transform:scale(.97); }
+  100% { transform:scale(1); }
+}
+
+.brake-pressure-row {
+  display:flex; align-items:center; gap:10px; margin-bottom:10px;
+}
+.brake-pressure-row .label { margin:0; }
+.brake-pressure-val { font-family:var(--mono); font-size:.9rem; color:var(--danger); min-width:32px; }
+
+.speed-row { display:flex; align-items:center; gap:10px; }
+.speed-row input { flex:1; }
+.speed-val-lbl { font-family:var(--mono); font-size:.9rem; color:var(--accent); min-width:38px; text-align:right; }
+
+input[type=range] {
+  -webkit-appearance:none; height:3px;
+  background:var(--border2); border-radius:2px; outline:none; cursor:pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance:none; width:13px; height:13px;
+  border-radius:50%; background:var(--accent); cursor:pointer;
+  box-shadow:0 0 8px rgba(0,212,255,.5);
+}
+
+hr.div { border:none; border-top:1px solid var(--border); margin:14px 0; }
+
+/* Violations */
+.violations { list-style:none; display:flex; flex-direction:column; gap:4px; max-height:80px; overflow-y:auto; }
+.violations li {
+  font-family:var(--mono); font-size:.65rem;
+  padding:3px 8px; border-left:2px solid var(--warn);
+  color:var(--warn); background:rgba(255,179,0,.04);
+}
+.violations li.danger { border-color:var(--danger); color:var(--danger); background:rgba(255,42,42,.04); }
+
+/* ── Bus event timeline ── */
+.row-buses {
+  grid-column:1/-1;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:14px;
+}
+
+.bus-timeline { display:flex; flex-direction:column; gap:5px; max-height:240px; overflow-y:auto; padding:10px 14px; }
+
+.bus-event {
+  display:grid;
+  grid-template-columns:52px 22px 68px 1fr;
+  gap:8px; align-items:start;
+  padding:6px 10px;
+  border-radius:2px;
+  border-left:3px solid var(--border2);
+  background:var(--bg3);
+  font-family:var(--mono); font-size:.67rem;
+  animation:slide-in .25s ease;
+  transition:border-color .3s;
+}
+@keyframes slide-in { from{opacity:0;transform:translateX(-5px)} to{opacity:1;transform:none} }
+
+.bus-event.can-tx { border-color:var(--accent); }
+.bus-event.can-rx { border-color:rgba(0,212,255,.3); }
+.bus-event.lin-req { border-color:var(--warn); }
+.bus-event.lin-rsp { border-color:rgba(255,179,0,.35); }
+.bus-event.safety  { border-color:var(--purple); }
+.bus-event.ai-evt  { border-color:#818cf8; }
+.bus-event.brake-evt { border-color:var(--danger); }
+
+.be-time  { color:var(--dim); }
+.be-dir   { text-align:center; padding:1px 4px; border-radius:2px; font-size:.6rem; }
+.be-dir.tx  { background:rgba(0,212,255,.12); color:var(--accent); }
+.be-dir.rx  { background:rgba(0,212,255,.06); color:rgba(0,212,255,.6); }
+.be-dir.req { background:rgba(255,179,0,.12); color:var(--warn); }
+.be-dir.rsp { background:rgba(255,179,0,.06); color:rgba(255,179,0,.7); }
+.be-dir.brk { background:rgba(255,42,42,.15); color:var(--danger); }
+.be-dir.saf { background:rgba(192,132,252,.12); color:var(--purple); }
+.be-dir.ai  { background:rgba(129,140,248,.12); color:#818cf8; }
+
+.be-id   { color:var(--accent); }
+.be-id.lin { color:var(--warn); }
+.be-id.safety { color:var(--purple); }
+.be-id.brake { color:var(--danger); }
+
+.be-data { color:var(--text); opacity:.75; }
+
+/* highlight brake events */
+.bus-event.brake-evt .be-data { color:var(--danger); opacity:1; }
+
+/* ── Brake detail modal ── */
+#brakeModal {
+  display:none;
+  position:fixed; inset:0; z-index:8000;
+  background:rgba(0,0,0,.8);
+  align-items:center; justify-content:center;
+}
+#brakeModal.open { display:flex; }
+
+.modal-box {
+  background:var(--bg2); border:1px solid var(--danger);
+  border-radius:4px; width:660px; max-width:95vw;
+  box-shadow:0 0 60px rgba(255,42,42,.25);
+  overflow:hidden;
+  animation:modal-in .25s ease;
+}
+@keyframes modal-in { from{opacity:0;transform:scale(.96)} to{opacity:1;transform:scale(1)} }
+
+.modal-head {
+  padding:14px 20px; background:rgba(255,42,42,.08);
+  border-bottom:1px solid rgba(255,42,42,.25);
+  display:flex; align-items:center; gap:12px;
+}
+.modal-head h2 { font-family:var(--sans); font-weight:900; font-size:1.1rem; letter-spacing:.2em; color:var(--danger); }
+.modal-close {
+  margin-left:auto; background:none; border:1px solid var(--border2);
+  color:var(--dim); font-family:var(--mono); font-size:.8rem;
+  padding:4px 12px; cursor:pointer; border-radius:2px;
+}
+.modal-close:hover { border-color:var(--danger); color:var(--danger); }
+
+.modal-body { padding:20px; display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+
+.modal-section h3 {
+  font-family:var(--sans); font-weight:700; font-size:.6rem; letter-spacing:.2em;
+  color:var(--dim); text-transform:uppercase; margin-bottom:10px;
+  border-bottom:1px solid var(--border); padding-bottom:6px;
+}
+
+.modal-kv { display:flex; flex-direction:column; gap:5px; }
+.modal-kv-row { display:flex; justify-content:space-between; font-size:.72rem; }
+.modal-kv-row .k { font-family:var(--mono); color:var(--dim); }
+.modal-kv-row .v { font-family:var(--mono); color:var(--text); }
+.modal-kv-row .v.danger { color:var(--danger); }
+.modal-kv-row .v.warn   { color:var(--warn);   }
+.modal-kv-row .v.ok     { color:var(--ok);     }
+
+.modal-events { display:flex; flex-direction:column; gap:4px; }
+.modal-event {
+  font-family:var(--mono); font-size:.63rem;
+  padding:4px 8px; border-left:2px solid var(--border2);
+  color:var(--text); background:var(--bg3); border-radius:0 2px 2px 0;
+}
+.modal-event.can { border-color:var(--accent); }
+.modal-event.lin { border-color:var(--warn); }
+.modal-event.safety { border-color:var(--purple); }
+.modal-event.ai     { border-color:#818cf8; }
+.modal-event.brake  { border-color:var(--danger); color:var(--danger); }
+
+.modal-footer {
+  padding:12px 20px; border-top:1px solid var(--border);
+  font-family:var(--mono); font-size:.65rem; color:var(--dim);
+  display:flex; gap:20px;
+}
+
+/* ── Log feed ── */
+.row-log { grid-column:1/-1; }
+
+.log-feed {
+  font-family:var(--mono); font-size:.68rem; line-height:1.65;
+  height:200px; overflow-y:auto;
+  background:var(--bg); border-top:1px solid var(--border);
+  padding:10px 16px;
+}
+.log-feed::-webkit-scrollbar { width:3px; }
+.log-feed::-webkit-scrollbar-thumb { background:var(--border2); }
+
+.ll       { color:var(--dim); }
+.ll.can   { color:#5cc0f0; }
+.ll.lin   { color:#a0d4e8; }
+.ll.engine{ color:#f0a050; }
+.ll.brake { color:#f06060; font-weight:bold; }
+.ll.safety{ color:var(--warn); }
+.ll.ai    { color:var(--purple); }
+.ll.aziza { color:var(--accent); }
+.ll.sensor{ color:#70e0a0; }
+.ll.body  { color:#70a0e0; }
+
+/* ── Scrollbars ── */
+::-webkit-scrollbar { width:3px; height:3px; }
+::-webkit-scrollbar-track { background:var(--bg2); }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+
+/* ── Car Control Panel ── */
+.cc-section { margin-bottom: 18px; }
+.cc-section .label { display:block; margin-bottom:10px; }
+
+/* Window grid */
+.win-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:4px;
+}
+.win-card {
+  background:var(--bg3); border:1px solid var(--border); border-radius:3px;
+  padding:8px 10px; text-align:center;
+}
+.win-card .wc-label {
+  font-family:var(--mono); font-size:.6rem; color:var(--dim);
+  letter-spacing:.12em; margin-bottom:6px;
+}
+.win-bar-wrap { height:6px; background:var(--border); border-radius:3px; overflow:hidden; margin-bottom:7px; }
+.win-bar { height:100%; background:var(--accent); border-radius:3px; transition:width .5s ease; width:0%; }
+.win-pct { font-family:var(--mono); font-size:.75rem; color:var(--accent); margin-bottom:6px; }
+.win-btns { display:flex; gap:4px; justify-content:center; }
+.win-btn {
+  font-family:var(--sans); font-weight:700; font-size:.62rem;
+  letter-spacing:.1em; padding:4px 8px;
+  border:1px solid var(--border2); background:transparent;
+  color:var(--dim); cursor:pointer; border-radius:2px; transition:all .15s;
+}
+.win-btn:hover  { border-color:var(--accent); color:var(--accent); background:rgba(0,212,255,.05); }
+.win-btn.active { border-color:var(--ok);     color:var(--ok);     background:rgba(0,230,118,.06); }
+
+/* Light grid */
+.light-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:6px;
+}
+.light-item {
+  display:flex; align-items:center; justify-content:space-between;
+  background:var(--bg3); border:1px solid var(--border); border-radius:3px;
+  padding:7px 10px; cursor:pointer; transition:all .2s;
+  font-family:var(--mono); font-size:.67rem;
+}
+.light-item:hover { border-color:var(--warn); }
+.light-item.on { border-color:rgba(255,179,0,.5); background:rgba(255,179,0,.05); }
+.light-item.on .li-dot { background:var(--warn); box-shadow:0 0 8px var(--warn); }
+.light-item.dim { border-color:rgba(255,179,0,.2); }
+.light-item.dim .li-dot { background:rgba(255,179,0,.45); }
+.li-name { color:var(--text); }
+.li-dot {
+  width:8px; height:8px; border-radius:50%;
+  background:var(--border2); transition:all .2s;
+}
+.li-state { font-size:.58rem; color:var(--dim); margin-top:1px; }
+
+/* Door lock grid */
+.door-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:6px;
+}
+.door-item {
+  background:var(--bg3); border:1px solid var(--border); border-radius:3px;
+  padding:7px 10px; text-align:center; transition:all .2s;
+}
+.door-item.locked   { border-color:rgba(0,230,118,.3); }
+.door-item.unlocked { border-color:rgba(255,42,42,.3); }
+.di-icon { font-size:1.1rem; margin-bottom:2px; }
+.di-name { font-family:var(--mono); font-size:.58rem; color:var(--dim); letter-spacing:.1em; }
+.di-state { font-family:var(--mono); font-size:.62rem; margin-top:3px; }
+.di-state.locked   { color:var(--ok); }
+.di-state.unlocked { color:var(--danger); }
+
+.lock-btns { display:flex; gap:8px; margin-top:10px; }
+.lock-btn {
+  flex:1; font-family:var(--sans); font-weight:700; font-size:.72rem;
+  letter-spacing:.12em; padding:8px; border-radius:2px; cursor:pointer;
+  border:1px solid var(--border2); background:transparent;
+  color:var(--text); transition:all .18s;
+}
+.lock-btn.lock-all   { border-color:var(--ok);     color:var(--ok); }
+.lock-btn.unlock-all { border-color:var(--danger);  color:var(--danger); }
+.lock-btn:hover { opacity:.8; }
+
+/* ── Car control — simple live outline (top-down) ── */
+.cc-pbody { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; }
+.cc-viz {
+  grid-column:1 / -1;
+  padding:12px 14px;
+  background:var(--bg3);
+  border:1px solid var(--border);
+  border-radius:3px;
+}
+.cc-viz .label { margin-bottom:8px; }
+.cc-viz-note {
+  font-family:var(--mono); font-size:.58rem; color:var(--dim);
+  letter-spacing:.06em; margin-bottom:10px;
+}
+.cc-viz-wrap {
+  display:grid;
+  grid-template-columns:minmax(220px, 360px) minmax(170px, 300px);
+  gap:14px;
+  align-items:start;
+  justify-content:center;
+}
+.cc-car {
+  display:flex; flex-direction:column; align-items:center; gap:10px;
+  max-width:320px; margin:0 auto;
+}
+.cc-car-front {
+  font-family:var(--mono); font-size:.55rem; color:var(--dim);
+  letter-spacing:.2em;
+}
+.cc-bulbs {
+  display:flex; align-items:center; justify-content:center; gap:14px;
+  flex-wrap:wrap;
+}
+.cc-bulb {
+  width:11px; height:11px; border-radius:50%;
+  background:var(--border2);
+  border:1px solid var(--border);
+  transition:background .2s, box-shadow .2s, opacity .2s;
+}
+.cc-bulb.on {
+  background:#fff6b0;
+  box-shadow:0 0 12px rgba(255,230,120,.85), 0 0 4px rgba(255,200,80,.5);
+  border-color:rgba(255,224,102,.6);
+}
+.cc-bulb.dim {
+  background:rgba(255,224,102,.45);
+  box-shadow:0 0 6px rgba(255,200,80,.35);
+}
+.cc-bulb.haz.on {
+  background:#ff6b6b;
+  animation:cc-haz 0.55s ease-in-out infinite alternate;
+  border-color:rgba(255,80,80,.5);
+}
+@keyframes cc-haz {
+  from { opacity:1; box-shadow:0 0 14px rgba(255,60,60,.9); }
+  to   { opacity:.35; box-shadow:0 0 4px rgba(255,60,60,.4); }
+}
+.cc-car-mid {
+  display:flex; align-items:stretch; justify-content:center;
+  gap:6px; width:100%;
+}
+.cc-side {
+  display:flex; flex-direction:column; justify-content:space-between;
+  gap:12px; width:40px;
+}
+.viz-door {
+  flex:1; min-height:54px;
+  border:2px solid var(--border2);
+  border-radius:2px;
+  background:rgba(0,212,255,.05);
+  display:flex; align-items:center; justify-content:center;
+  transition:transform .28s ease, border-color .2s, background .2s;
+}
+.viz-door.locked {
+  border-color:rgba(0,230,118,.4);
+  background:rgba(0,230,118,.04);
+}
+.viz-door.unlocked {
+  border-color:rgba(255,179,0,.55);
+  background:rgba(255,179,0,.06);
+}
+.cc-side.left .viz-door.unlocked  { transform:translateX(-6px); }
+.cc-side.right .viz-door.unlocked { transform:translateX(6px); }
+.viz-win-slot {
+  width:9px; height:42px;
+  background:var(--bg); border:1px solid var(--border2);
+  border-radius:1px; position:relative; overflow:hidden;
+}
+.viz-win-fill {
+  position:absolute; left:0; right:0; bottom:0;
+  height:0%;
+  background:linear-gradient(180deg,
+    rgba(0,212,255,.2), rgba(0,212,255,.55));
+  transition:height .45s ease;
+}
+.cc-cabin {
+  flex:1; min-width:100px; max-width:140px;
+  min-height:120px;
+  margin:0 2px;
+  border:1px solid var(--border);
+  border-radius:4px;
+  background:var(--bg);
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--mono); font-size:.55rem; color:var(--dim);
+  letter-spacing:.12em;
+  transition:box-shadow .25s, background .25s;
+}
+.cc-cabin.int-on {
+  background:rgba(255,224,102,.06);
+  box-shadow:inset 0 0 24px rgba(255,224,102,.15);
+  color:var(--text);
+}
+.cc-circuit {
+  border:1px solid var(--border2);
+  border-radius:3px;
+  background:var(--bg);
+  padding:6px;
+  max-width:290px;
+  justify-self:center;
+}
+.cc-circuit-title {
+  display:block;
+  font-family:var(--mono);
+  font-size:.52rem;
+  color:var(--accent);
+  letter-spacing:.05em;
+  margin-bottom:6px;
+  text-transform:uppercase;
+}
+.cc-circuit svg {
+  width:100%;
+  height:auto;
+  display:block;
+}
+.cc-wire { stroke:#9eaab5; stroke-width:1.8; fill:none; }
+.cc-comp { stroke:#bfc8d0; stroke-width:1.8; fill:none; }
+.cc-comp.dim { stroke:#6d7b88; }
+.cc-text {
+  fill:#8fa3b4;
+  font-family:var(--mono);
+  font-size:9px;
+}
+.cc-lamp {
+  fill:rgba(255,179,0,.06);
+  stroke:#7f8a93;
+  stroke-width:2;
+  transition:fill .2s, filter .2s, stroke .2s;
+}
+.cc-viz.haz-on .cc-lamp {
+  fill:rgba(255,179,0,.55);
+  stroke:#ffd166;
+  filter:drop-shadow(0 0 6px rgba(255,196,84,.9));
+  animation:cc-circuit-blink .55s ease-in-out infinite alternate;
+}
+.cc-pulse {
+  opacity:.45;
+}
+@keyframes cc-circuit-blink {
+  from { opacity:1; }
+  to { opacity:.28; }
+}
+.cc-current-dot {
+  fill:#ffe08a;
+  opacity:0;
+  filter:drop-shadow(0 0 3px rgba(255,224,138,.9));
+}
+.cc-viz.haz-on .cc-current-dot {
+  opacity:1;
+}
+.cc-viz.haz-on .cc-current-dot.top {
+  animation:cc-current-top .55s linear infinite;
+}
+.cc-viz.haz-on .cc-current-dot.ret {
+  animation:cc-current-ret .55s linear infinite;
+}
+.cc-current-dot.d2 { animation-delay:.18s !important; }
+.cc-current-dot.d3 { animation-delay:.34s !important; }
+@keyframes cc-current-top {
+  0% { transform:translate(0px, 0px); opacity:0; }
+  15% { opacity:1; }
+  65% { transform:translate(72px, 0px); opacity:1; }
+  100% { transform:translate(72px, 94px); opacity:0; }
+}
+@keyframes cc-current-ret {
+  0% { transform:translate(0px, 0px); opacity:0; }
+  20% { opacity:1; }
+  45% { transform:translate(0px, 28px); opacity:1; }
+  100% { transform:translate(-64px, 28px); opacity:0; }
+}
+
+</style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────── -->
+<header>
+  <div class="logo">AZIZA <small>Distributed Automotive ECU Simulation</small></div>
+  <div class="hdr-sep"></div>
+  <div class="cycle-box">CYCLE<br><b id="cycleNum">——</b></div>
+  <div class="ws-pill">
+    <div class="ws-dot" id="wsDot"></div>
+    <span id="wsLabel">DISCONNECTED</span>
+  </div>
+</header>
+
+<!-- ── Brake detail modal ─────────────────────────────── -->
+<div id="brakeModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span style="font-size:1.4rem">⛔</span>
+      <h2>BRAKE EVENT DETAIL</h2>
+      <button class="modal-close" onclick="closeModal()">✕ CLOSE</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-section">
+        <h3>Sensor Snapshot</h3>
+        <div class="modal-kv" id="mSnap"></div>
+      </div>
+      <div class="modal-section">
+        <h3>Safety Layer Response</h3>
+        <div class="modal-kv" id="mSafety"></div>
+      </div>
+      <div class="modal-section" style="grid-column:1/-1">
+        <h3>Bus Activity During Brake Event</h3>
+        <div class="modal-events" id="mBusEvents"></div>
+      </div>
+    </div>
+    <div class="modal-footer" id="mFooter"></div>
+  </div>
+</div>
+
+<!-- ── Main layout ───────────────────────────────────── -->
+<div class="layout">
+
+  <!-- Gauges -->
+  <div class="row-gauges">
+
+    <div class="gauge-card" id="gc-speed">
+      <div class="gauge-label">Speed</div>
+      <div class="arc-wrap">
+        <svg viewBox="0 0 100 55"><path d="M10 50 A40 40 0 0 1 90 50" fill="none" stroke="#1a2835" stroke-width="6" stroke-linecap="round"/><path id="arcSpeed" d="M10 50 A40 40 0 0 1 90 50" fill="none" stroke="#00d4ff" stroke-width="6" stroke-linecap="round" stroke-dasharray="125.6" stroke-dashoffset="125.6" style="transition:stroke-dashoffset .8s ease,stroke .3s"/></svg>
+      </div>
+      <div class="g-val" id="valSpeed">0.0</div>
+      <div class="g-unit">km / h</div>
+    </div>
+
+    <div class="gauge-card" id="gc-temp">
+      <div class="gauge-label">Engine Temp</div>
+      <div class="arc-wrap">
+        <svg viewBox="0 0 100 55"><path d="M10 50 A40 40 0 0 1 90 50" fill="none" stroke="#1a2835" stroke-width="6" stroke-linecap="round"/><path id="arcTemp" d="M10 50 A40 40 0 0 1 90 50" fill="none" stroke="#00d4ff" stroke-width="6" stroke-linecap="round" stroke-dasharray="125.6" stroke-dashoffset="125.6" style="transition:stroke-dashoffset .8s ease,stroke .3s"/></svg>
+      </div>
+      <div class="g-val" id="valTemp">—</div>
+      <div class="g-unit">° C</div>
+    </div>
+
+    <div class="gauge-card" id="gc-brake">
+      <div class="gauge-label">Brake Pressure</div>
+      <div class="arc-wrap">
+        <svg viewBox="0 0 100 55"><path d="M10 50 A40 40 0 0 1 90 50" fill="none" stroke="#1a2835" stroke-width="6" stroke-linecap="round"/><path id="arcBrake" d="M10 50 A40 40 0 0 1 90 50" fill="none" stroke="#00d4ff" stroke-width="6" stroke-linecap="round" stroke-dasharray="125.6" stroke-dashoffset="125.6" style="transition:stroke-dashoffset .4s ease,stroke .2s"/></svg>
+      </div>
+      <div class="g-val" id="valBrake">0.00</div>
+      <div class="g-unit">pressure</div>
+    </div>
+
+    <div class="gauge-card" id="gc-engine">
+      <div class="gauge-label">Engine State</div>
+      <div style="margin:16px 0 8px">
+        <div class="state-badge s-NORMAL" id="engineBadge">NORMAL</div>
+      </div>
+      <div class="g-unit" id="cruiseLbl">Cruise: OFF</div>
+    </div>
+
+    <div class="gauge-card" id="gc-ai">
+      <div class="gauge-label">AI Risk Level</div>
+      <div style="margin:16px 0 8px">
+        <div class="state-badge r-NORMAL" id="aiBadge">NORMAL</div>
+      </div>
+      <div class="g-unit" id="aiScoreLbl">Score: 0</div>
+    </div>
+
+  </div>
+
+  <!-- Chart + Controls -->
+  <div class="row-mid">
+
+    <div class="panel">
+      <div class="p-head"><span class="label">Live Telemetry — Last 60 cycles</span><div class="dot"></div></div>
+      <div class="p-body" style="padding-bottom:16px">
+        <canvas id="chartMain" height="200"></canvas>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="p-head"><span class="label">Control Panel</span></div>
+      <div class="p-body">
+
+        <!-- BRAKE BUTTON -->
+        <div class="control-block">
+          <span class="label" style="display:block;margin-bottom:8px">Manual Brake</span>
+          <button class="btn" id="btnBrake"
+            onmousedown="brakePress()" ontouchstart="brakePress()"
+            onmouseup="brakeRelease()" ontouchend="brakeRelease()" onmouseleave="brakeRelease()">
+            ⛔ HOLD TO BRAKE
+          </button>
+          <div class="brake-pressure-row">
+            <span class="label">Pressure</span>
+            <input type="range" id="brakePressure" min="10" max="100" value="80" style="flex:1" oninput="updateBrakeLbl(this.value)"/>
+            <span class="brake-pressure-val" id="brakePressureVal">0.80</span>
+          </div>
+        </div>
+
+        <hr class="div"/>
+
+        <!-- Cruise -->
+        <div class="control-block">
+          <span class="label" style="display:block;margin-bottom:8px">Cruise Control</span>
+          <button class="btn" id="btnCruiseOn" onclick="cruiseOn()">Enable</button>
+          <button class="btn" id="btnCruiseOff" onclick="cruiseOff()">Disable</button>
+        </div>
+
+        <!-- Target speed -->
+        <div class="control-block">
+          <span class="label" style="display:block;margin-bottom:8px">Target Speed</span>
+          <div class="speed-row">
+            <input type="range" id="targetSpeed" min="20" max="140" value="80" oninput="document.getElementById('tsVal').textContent=this.value"/>
+            <span class="speed-val-lbl" id="tsVal">80</span>
+            <span style="font-size:.6rem;color:var(--dim)">km/h</span>
+          </div>
+          <button class="btn" style="margin-top:10px;width:100%" onclick="applySpeed()">Apply Speed</button>
+        </div>
+
+        <hr class="div"/>
+
+        <!-- Violations -->
+        <div class="control-block">
+          <span class="label" style="display:block;margin-bottom:8px">Safety Violations</span>
+          <ul class="violations" id="violationsList">
+            <li style="border:none;color:var(--ok);background:none">✓ No violations</li>
+          </ul>
+        </div>
+
+        <!-- AI anomalies -->
+        <div class="control-block">
+          <span class="label" style="display:block;margin-bottom:8px">AI Anomalies</span>
+          <div id="anomalyTags" style="font-family:var(--mono);font-size:.65rem;color:var(--dim)">—</div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+
+  <!-- ══ Car Control Panel ══════════════════════════════════════ -->
+  <div class="panel" style="grid-column:1/-1">
+    <div class="p-head">
+      <span class="label">Car Control — Windows · Lights · Door Locks</span>
+      <div class="dot" style="background:var(--ok)"></div>
+    </div>
+    <div class="p-body cc-pbody">
+
+      <div class="cc-viz" id="ccViz">
+        <span class="label">Live outline</span>
+        <div class="cc-viz-note">↑ front · taller cyan = window more open · door nudged = unlocked</div>
+        <div class="cc-viz-wrap">
+          <div class="cc-car" aria-hidden="true">
+            <div class="cc-car-front">front</div>
+            <div class="cc-bulbs">
+              <span class="cc-bulb" id="viz-bulb-head" title="Headlights"></span>
+              <span class="cc-bulb" id="viz-bulb-fog" title="Fog"></span>
+              <span class="cc-bulb" id="viz-bulb-int" title="Interior"></span>
+              <span class="cc-bulb haz" id="viz-bulb-haz" title="Hazard"></span>
+            </div>
+            <div class="cc-car-mid">
+              <div class="cc-side left">
+                <div class="viz-door locked" id="viz-door-FL">
+                  <div class="viz-win-slot"><div class="viz-win-fill" id="viz-win-0"></div></div>
+                </div>
+                <div class="viz-door locked" id="viz-door-RL">
+                  <div class="viz-win-slot"><div class="viz-win-fill" id="viz-win-2"></div></div>
+                </div>
+              </div>
+              <div class="cc-cabin" id="viz-cabin">cabin</div>
+              <div class="cc-side right">
+                <div class="viz-door locked" id="viz-door-FR">
+                  <div class="viz-win-slot"><div class="viz-win-fill" id="viz-win-1"></div></div>
+                </div>
+                <div class="viz-door locked" id="viz-door-RR">
+                  <div class="viz-win-slot"><div class="viz-win-fill" id="viz-win-3"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="cc-circuit" id="vizCircuit">
+            <span class="cc-circuit-title">car relay blinker signal circut simulation</span>
+            <svg viewBox="0 0 360 220" aria-hidden="true">
+              <!-- Supply and ground rails -->
+              <path class="cc-wire" d="M24 34 H330" />
+              <path class="cc-wire" d="M24 190 H330" />
+
+              <!-- Battery -->
+              <path class="cc-comp" d="M40 22 V46 M50 26 V42" />
+              <text class="cc-text" x="18" y="58">13.7V</text>
+
+              <!-- Feed resistor/fuse -->
+              <path class="cc-comp" d="M92 34 l6 -6 l6 12 l6 -12 l6 12 l6 -12 l6 12 l6 -6" />
+              <text class="cc-text" x="92" y="22">270 Ω</text>
+
+              <!-- Relay contact (NO) in lamp power path -->
+              <path class="cc-wire" d="M146 34 H184" />
+              <path class="cc-comp" d="M184 34 H200 M204 34 H220" />
+              <path class="cc-comp" d="M200 34 L208 26" />
+              <text class="cc-text" x="178" y="18">Relay NO</text>
+
+              <!-- Lamp branch -->
+              <path class="cc-wire cc-pulse" d="M220 34 H300 V128" />
+              <circle class="cc-lamp" cx="300" cy="146" r="16" />
+              <path class="cc-comp dim" d="M290 146 H310 M300 136 V156" />
+              <path class="cc-wire cc-pulse" d="M300 162 V190" />
+              <text class="cc-text" x="284" y="172">Lamp</text>
+              <circle class="cc-current-dot top d1" cx="228" cy="34" r="2.2" />
+              <circle class="cc-current-dot top d2" cx="228" cy="34" r="2.2" />
+              <circle class="cc-current-dot top d3" cx="228" cy="34" r="2.2" />
+              <circle class="cc-current-dot ret d1" cx="300" cy="162" r="2.2" />
+              <circle class="cc-current-dot ret d2" cx="300" cy="162" r="2.2" />
+
+              <!-- Relay coil branch -->
+              <path class="cc-wire" d="M164 34 V66" />
+              <path class="cc-comp" d="M152 66 c6 0 6 10 12 10 c6 0 6 -10 12 -10 c6 0 6 10 12 10" />
+              <path class="cc-wire" d="M188 76 V118" />
+              <text class="cc-text" x="136" y="92">Relay coil</text>
+
+              <!-- Flyback diode across coil -->
+              <path class="cc-comp" d="M152 56 H188" />
+              <path class="cc-comp" d="M163 50 l10 6 l-10 6 z M176 49 V63" />
+              <text class="cc-text" x="130" y="50">Flyback diode</text>
+
+              <!-- NPN low-side driver -->
+              <circle class="cc-comp" cx="188" cy="138" r="16" />
+              <path class="cc-comp" d="M182 126 V118 M176 142 H168 M194 146 H205 M194 146 L200 152" />
+              <path class="cc-wire" d="M188 154 V190" />
+              <text class="cc-text" x="206" y="146">NPN</text>
+
+              <!-- RC timing network on base -->
+              <path class="cc-wire" d="M112 138 H168" />
+              <path class="cc-comp" d="M90 138 l6 -6 l6 12 l6 -12 l6 12 l6 -12 l6 12 l6 -6" />
+              <text class="cc-text" x="78" y="126">Rbase</text>
+              <path class="cc-wire" d="M112 138 V190" />
+              <path class="cc-comp" d="M104 158 H120 M104 166 H120" />
+              <text class="cc-text" x="74" y="178">400 µF</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Windows -->
+      <div class="cc-section">
+        <span class="label">Power Windows</span>
+        <div class="win-grid">
+          <div class="win-card" id="wcard-0">
+            <div class="wc-label">FRONT LEFT</div>
+            <div class="win-bar-wrap"><div class="win-bar" id="wbar-0"></div></div>
+            <div class="win-pct" id="wpct-0">0%</div>
+            <div class="win-btns">
+              <button class="win-btn" onclick="winCmd(0,1)" title="Up">▲ UP</button>
+              <button class="win-btn" onclick="winCmd(0,0)" title="Stop">■</button>
+              <button class="win-btn" onclick="winCmd(0,2)" title="Down">▼ DN</button>
+            </div>
+          </div>
+          <div class="win-card" id="wcard-1">
+            <div class="wc-label">FRONT RIGHT</div>
+            <div class="win-bar-wrap"><div class="win-bar" id="wbar-1"></div></div>
+            <div class="win-pct" id="wpct-1">0%</div>
+            <div class="win-btns">
+              <button class="win-btn" onclick="winCmd(1,1)">▲ UP</button>
+              <button class="win-btn" onclick="winCmd(1,0)">■</button>
+              <button class="win-btn" onclick="winCmd(1,2)">▼ DN</button>
+            </div>
+          </div>
+          <div class="win-card" id="wcard-2">
+            <div class="wc-label">REAR LEFT</div>
+            <div class="win-bar-wrap"><div class="win-bar" id="wbar-2"></div></div>
+            <div class="win-pct" id="wpct-2">0%</div>
+            <div class="win-btns">
+              <button class="win-btn" onclick="winCmd(2,1)">▲ UP</button>
+              <button class="win-btn" onclick="winCmd(2,0)">■</button>
+              <button class="win-btn" onclick="winCmd(2,2)">▼ DN</button>
+            </div>
+          </div>
+          <div class="win-card" id="wcard-3">
+            <div class="wc-label">REAR RIGHT</div>
+            <div class="win-bar-wrap"><div class="win-bar" id="wbar-3"></div></div>
+            <div class="win-pct" id="wpct-3">0%</div>
+            <div class="win-btns">
+              <button class="win-btn" onclick="winCmd(3,1)">▲ UP</button>
+              <button class="win-btn" onclick="winCmd(3,0)">■</button>
+              <button class="win-btn" onclick="winCmd(3,2)">▼ DN</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lights -->
+      <div class="cc-section">
+        <span class="label">Vehicle Lights</span>
+        <div class="light-grid">
+          <div class="light-item" id="li-head" onclick="toggleLight(1,  'li-head')">
+            <div><div class="li-name">💡 Headlights</div><div class="li-state" id="ls-head">OFF</div></div>
+            <div class="li-dot"></div>
+          </div>
+          <div class="light-item" id="li-int" onclick="toggleLight(2,  'li-int')">
+            <div><div class="li-name">🔆 Interior</div><div class="li-state" id="ls-int">OFF</div></div>
+            <div class="li-dot"></div>
+          </div>
+          <div class="light-item" id="li-haz" onclick="toggleLight(4,  'li-haz')">
+            <div><div class="li-name">⚠️ Hazard</div><div class="li-state" id="ls-haz">OFF</div></div>
+            <div class="li-dot"></div>
+          </div>
+          <div class="light-item" id="li-fog" onclick="toggleLight(8,  'li-fog')">
+            <div><div class="li-name">🌫️ Fog</div><div class="li-state" id="ls-fog">OFF</div></div>
+            <div class="li-dot"></div>
+          </div>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:6px">
+          <button class="btn" style="flex:1;font-size:.65rem;padding:6px" onclick="allLightsOn()">ALL ON</button>
+          <button class="btn" style="flex:1;font-size:.65rem;padding:6px" onclick="allLightsOff()">ALL OFF</button>
+        </div>
+      </div>
+
+      <!-- Door Locks -->
+      <div class="cc-section">
+        <span class="label">Door Locks</span>
+        <div class="door-grid">
+          <div class="door-item locked" id="dcard-FL">
+            <div class="di-icon">🔒</div>
+            <div class="di-name">FRONT LEFT</div>
+            <div class="di-state locked" id="ds-FL">LOCKED</div>
+          </div>
+          <div class="door-item locked" id="dcard-FR">
+            <div class="di-icon">🔒</div>
+            <div class="di-name">FRONT RIGHT</div>
+            <div class="di-state locked" id="ds-FR">LOCKED</div>
+          </div>
+          <div class="door-item locked" id="dcard-RL">
+            <div class="di-icon">🔒</div>
+            <div class="di-name">REAR LEFT</div>
+            <div class="di-state locked" id="ds-RL">LOCKED</div>
+          </div>
+          <div class="door-item locked" id="dcard-RR">
+            <div class="di-icon">🔒</div>
+            <div class="di-name">REAR RIGHT</div>
+            <div class="di-state locked" id="ds-RR">LOCKED</div>
+          </div>
+        </div>
+        <div class="lock-btns">
+          <button class="lock-btn lock-all"   onclick="doorCmd(15, 1)">🔒 LOCK ALL</button>
+          <button class="lock-btn unlock-all" onclick="doorCmd(15, 0)">🔓 UNLOCK ALL</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Bus timelines -->
+  <div class="row-buses">
+
+    <div class="panel">
+      <div class="p-head">
+        <span class="label">CAN Bus — Event Timeline</span>
+        <div class="dot" style="background:var(--accent)"></div>
+      </div>
+      <div class="bus-timeline" id="canTimeline"></div>
+    </div>
+
+    <div class="panel">
+      <div class="p-head">
+        <span class="label">LIN Bus — Master / Slave Transactions</span>
+        <div class="dot" style="background:var(--warn)"></div>
+      </div>
+      <div class="bus-timeline" id="linTimeline"></div>
+    </div>
+
+  </div>
+
+  <!-- Log -->
+  <div class="row-log panel">
+    <div class="p-head"><span class="label">System Log Feed</span><div class="dot"></div></div>
+    <div class="log-feed" id="logFeed"></div>
+  </div>
+
+</div><!-- /layout -->
+
+<!-- Chart.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+'use strict';
+
+// ══════════════════════════════════════════════════════════
+//  WebSocket connection
+// ══════════════════════════════════════════════════════════
+const WS_URL = 'ws://' + location.hostname + ':8765/ws';
+let ws = null, reconnTimer = null;
+
+function connect() {
+  ws = new WebSocket(WS_URL);
+  ws.onopen = () => {
+    setWsStatus(true);
+    if (reconnTimer) { clearTimeout(reconnTimer); reconnTimer = null; }
+  };
+  ws.onclose = () => {
+    setWsStatus(false);
+    reconnTimer = setTimeout(connect, 2000);
+  };
+  ws.onerror = () => ws.close();
+  ws.onmessage = evt => {
+    try {
+      const msg = JSON.parse(evt.data);
+      if (msg.state)  updateDashboard(msg.state);
+      if (msg.log)    appendLog(msg.log);
+      if (msg.events) appendBusEvents(msg.events);
+    } catch(e) { console.warn('ws parse error', e); }
+  };
+}
+
+function setWsStatus(on) {
+  document.getElementById('wsDot').className = 'ws-dot' + (on ? ' on' : '');
+  document.getElementById('wsLabel').textContent = on ? 'CONNECTED' : 'RECONNECTING…';
+}
+
+// ══════════════════════════════════════════════════════════
+//  Helpers
+// ══════════════════════════════════════════════════════════
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function now() {
+  return new Date().toLocaleTimeString('en',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+function setArc(id, val, lo, hi) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const pct = Math.max(0, Math.min(1, (val - lo) / (hi - lo)));
+  el.style.strokeDashoffset = (125.6 - pct * 125.6).toFixed(2);
+}
+function arcColor(id, val, warn, danger) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.setAttribute('stroke', val >= danger ? 'var(--danger)' : val >= warn ? 'var(--warn)' : 'var(--accent)');
+}
+function gcClass(id, val, warn, danger) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'gauge-card' + (val >= danger ? ' danger' : val >= warn ? ' warn' : '');
+}
+function gvClass(id, val, warn, danger) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'g-val' + (val >= danger ? ' danger' : val >= warn ? ' warn' : '');
+}
+
+// ══════════════════════════════════════════════════════════
+//  Dashboard update (called every cycle via WebSocket)
+// ══════════════════════════════════════════════════════════
+let cycleN = 0;
+let lastState = {};
+
+function updateDashboard(s) {
+  lastState = s;
+  cycleN++;
+  document.getElementById('cycleNum').textContent = String(cycleN).padStart(4,'0');
+
+  const speed = s.speed || 0;
+  const temp  = s.temperature || 0;
+  const brake = s.brake_pressure || 0;
+  const thr   = s.throttle || 0;
+
+  // Speed
+  setArc('arcSpeed', speed, 0, 160);
+  arcColor('arcSpeed', speed, 100, 130);
+  gcClass('gc-speed', speed, 100, 130);
+  gvClass('valSpeed', speed, 100, 130);
+  document.getElementById('valSpeed').textContent = speed.toFixed(1);
+
+  // Temp
+  setArc('arcTemp', temp, 40, 135);
+  arcColor('arcTemp', temp, 100, 120);
+  gcClass('gc-temp', temp, 100, 120);
+  gvClass('valTemp', temp, 100, 120);
+  document.getElementById('valTemp').textContent = temp.toFixed(1);
+
+  // Brake
+  setArc('arcBrake', brake, 0, 1);
+  arcColor('arcBrake', brake, 0.3, 0.6);
+  gcClass('gc-brake', brake, 0.3, 0.6);
+  gvClass('valBrake', brake, 0.3, 0.6);
+  document.getElementById('valBrake').textContent = brake.toFixed(2);
+
+  // Engine state
+  const es = s.engine_state || 'NORMAL';
+  const eb = document.getElementById('engineBadge');
+  eb.textContent = es;
+  eb.className = 'state-badge s-' + es;
+  document.getElementById('cruiseLbl').textContent = 'Cruise: ' + (s.cruise_active ? 'ON (' + (s.cruise_target || '—') + ' km/h)' : 'OFF');
+
+  // AI
+  const risk = s.ai_risk || 'NORMAL';
+  const ab = document.getElementById('aiBadge');
+  ab.textContent = risk;
+  ab.className = 'state-badge r-' + risk;
+  document.getElementById('aiScoreLbl').textContent = 'Score: ' + (s.ai_score || 0);
+
+  // Anomalies
+  const anoms = s.ai_anomalies || [];
+  document.getElementById('anomalyTags').innerHTML = anoms.length
+    ? anoms.map(a => `<span style="display:inline-block;padding:2px 7px;margin:2px;border-radius:2px;background:rgba(255,179,0,.08);border:1px solid rgba(255,179,0,.3);color:var(--warn)">${esc(a)}</span>`).join('')
+    : '<span style="color:var(--dim)">—</span>';
+
+  // Violations
+  const vl = document.getElementById('violationsList');
+  const viols = s.violations || [];
+  vl.innerHTML = viols.length
+    ? viols.map(v => `<li class="${v.includes('CRITICAL') ? 'danger' : ''}">${esc(v)}</li>`).join('')
+    : '<li style="border:none;color:var(--ok);background:none">✓ No violations</li>';
+
+  // Chart
+  pushHistory(speed, temp, brake * 150, thr * 150);
+
+  // ── Car Control UI ──────────────────────────────────────────
+  updateWindowUI(s);
+  updateLightUI(s);
+  updateDoorUI(s);
+
+  // Build synthetic bus events from state if server doesn't send them
+  // (fallback — real events come via msg.events)
+  if (!_eventsThisCycle) {
+    appendBusEvents([
+      {bus:'CAN', id:'0x101', dir:'TX', data:{temp: temp.toFixed(1)},      ts: Date.now()/1000},
+      {bus:'CAN', id:'0x102', dir:'TX', data:{speed: speed.toFixed(1)},    ts: Date.now()/1000},
+      {bus:'CAN', id:'0x201', dir:'TX', data:{brake: brake.toFixed(2)},    ts: Date.now()/1000},
+      {bus:'LIN', id:'LIN_LIGHTING',  dir:'REQ', data:{command:'STATUS', speed: speed.toFixed(1)}, ts: Date.now()/1000},
+      {bus:'LIN', id:'LIN_LIGHTING',  dir:'RSP', data:{lights_on: s.lights_on}, ts: Date.now()/1000},
+      {bus:'LIN', id:'LIN_HVAC',      dir:'RSP', data:{fan: s.fan_speed || 0}, ts: Date.now()/1000},
+      {bus:'CAN', id:'0x301', dir:'TX', data:{win_FL: s.win_FL||0, win_FR: s.win_FR||0, win_RL: s.win_RL||0, win_RR: s.win_RR||0}, ts: Date.now()/1000},
+      {bus:'CAN', id:'0x311', dir:'TX', data:{head: s.light_headlights||'OFF', fog: s.light_fog||'OFF'}, ts: Date.now()/1000},
+      {bus:'CAN', id:'0x321', dir:'TX', data:{locks: s.all_locked ? 'ALL_LOCKED' : 'SOME_OPEN'}, ts: Date.now()/1000},
+    ]);
+  }
+  _eventsThisCycle = false;
+}
+
+let _eventsThisCycle = false;
+
+// ══════════════════════════════════════════════════════════
+//  Bus event timeline
+// ══════════════════════════════════════════════════════════
+const canEvents = [];
+const linEvents = [];
+const MAX_EVENTS = 30;
+
+// Store last brake event for modal
+let lastBrakeEvent = null;
+
+function appendBusEvents(events) {
+  if (!events || !events.length) return;
+  _eventsThisCycle = true;
+
+  const canEl = document.getElementById('canTimeline');
+  const linEl = document.getElementById('linTimeline');
+
+  events.forEach(ev => {
+    const t = new Date(ev.ts * 1000).toLocaleTimeString('en',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    const dataStr = typeof ev.data === 'object' ? Object.entries(ev.data).map(([k,v])=>`${k}=${v}`).join(' ') : String(ev.data);
+    const dir = (ev.dir || 'TX').toLowerCase();
+
+    let cls = '', idCls = '', dirCls = dir, evtCls = '';
+
+    if (ev.bus === 'CAN') {
+      cls = dir === 'tx' ? 'can-tx' : 'can-rx';
+      idCls = '';
+      evtCls = dir === 'tx' ? 'tx' : 'rx';
+    } else if (ev.bus === 'LIN') {
+      cls = dir === 'req' ? 'lin-req' : 'lin-rsp';
+      idCls = 'lin';
+      dirCls = dir;
+    } else if (ev.bus === 'SAFETY') {
+      cls = 'safety'; idCls = 'safety'; dirCls = 'saf';
+    } else if (ev.bus === 'AI') {
+      cls = 'ai-evt'; idCls = 'safety'; dirCls = 'ai';
+    } else if (ev.bus === 'BRAKE') {
+      cls = 'brake-evt'; idCls = 'brake'; dirCls = 'brk';
+      lastBrakeEvent = { ev, state: {...lastState}, t };
+    }
+
+    const html = `<div class="bus-event ${cls}">
+      <span class="be-time">${t}</span>
+      <span class="be-dir ${dirCls}">${(ev.dir||'TX').toUpperCase()}</span>
+      <span class="be-id ${idCls}">${esc(ev.id || ev.bus)}</span>
+      <span class="be-data">${esc(dataStr)}</span>
+    </div>`;
+
+    if (ev.bus === 'LIN') {
+      linEvents.unshift(html);
+      if (linEvents.length > MAX_EVENTS) linEvents.pop();
+    } else {
+      canEvents.unshift(html);
+      if (canEvents.length > MAX_EVENTS) canEvents.pop();
+    }
+  });
+
+  canEl.innerHTML = canEvents.join('');
+  linEl.innerHTML = linEvents.join('');
+}
+
+// ══════════════════════════════════════════════════════════
+//  Brake event modal
+// ══════════════════════════════════════════════════════════
+function openBrakeModal() {
+  const s = lastState;
+  const ev = lastBrakeEvent;
+
+  // Snapshot
+  document.getElementById('mSnap').innerHTML = kvRows([
+    ['Speed',    (s.speed||0).toFixed(1) + ' km/h',  (s.speed||0) > 100 ? 'danger' : ''],
+    ['Temp',     (s.temperature||0).toFixed(1) + ' °C', (s.temperature||0) > 100 ? 'warn' : ''],
+    ['Brake P',  (s.brake_pressure||0).toFixed(2),   'danger'],
+    ['Throttle', (s.throttle||0).toFixed(3),          (s.throttle||0) === 0 ? 'danger' : ''],
+    ['AI Risk',  s.ai_risk || 'NORMAL',               s.ai_risk === 'CRITICAL' ? 'danger' : s.ai_risk === 'SUSPICIOUS' ? 'warn' : 'ok'],
+    ['Cruise',   s.cruise_active ? 'ON' : 'OFF',     s.cruise_active ? 'warn' : 'ok'],
+  ]);
+
+  // Safety response
+  const viols = s.violations || [];
+  const sug   = (s.ai_suggestions || []).join(', ') || '—';
+  document.getElementById('mSafety').innerHTML = kvRows([
+    ['Engine state', s.engine_state || 'NORMAL',     s.engine_state === 'LIMITED' ? 'danger' : s.engine_state === 'REDUCED' ? 'warn' : 'ok'],
+    ['Approved throttle', (s.approved_throttle !== undefined ? s.approved_throttle : s.throttle || 0).toFixed(3), ''],
+    ['Violations', viols.length ? viols.length : '0', viols.length ? 'danger' : 'ok'],
+    ['AI Suggestion', sug, sug !== '—' ? 'warn' : ''],
+    ['Cruise after', s.cruise_active ? 'ON' : 'OFF →DISABLED', s.cruise_active ? '' : 'danger'],
+    ['Lights', s.lights_on ? 'ON' : 'OFF', ''],
+  ]);
+
+  // Bus events — last few
+  const recent = [...canEvents, ...linEvents]
+    .slice(0, 10)
+    .map(h => h) // already HTML
+    .join('');
+
+  // Build modal events from raw events
+  const allEvts = [
+    {cls:'can',    msg:`[CAN] TX id=0x201 brake=${(s.brake_pressure||0).toFixed(2)}`},
+    {cls:'can',    msg:`[CAN] TX id=0x102 speed=${(s.speed||0).toFixed(1)}`},
+    {cls:'can',    msg:`[CAN] TX id=0x101 temp=${(s.temperature||0).toFixed(1)}`},
+    {cls:'brake',  msg:`[BRAKE] ACTIVE pressure=${(s.brake_pressure||0).toFixed(2)} → throttle forced 0`},
+    {cls:'safety', msg:`[SAFETY] BRAKE_OVERRIDE detected → throttle=0 enforced`},
+    {cls:'safety', msg:`[SAFETY] AI suggestions checked: ${sug}`},
+    {cls:'ai',     msg:`[AI] Risk=${s.ai_risk||'NORMAL'} Score=${s.ai_score||0} Anomalies=[${(s.ai_anomalies||[]).join(',')||'—'}]`},
+    {cls:'lin',    msg:`[LIN] MASTER→LIN_LIGHTING REQ={command:'STATUS', speed:${(s.speed||0).toFixed(1)}}`},
+    {cls:'lin',    msg:`[LIN] LIN_LIGHTING→MASTER RSP={lights_on:${s.lights_on}}`},
+    {cls:'lin',    msg:`[LIN] LIN_HVAC→MASTER RSP={fan:${s.fan_speed||0}}`},
+  ];
+
+  document.getElementById('mBusEvents').innerHTML = allEvts
+    .map(e => `<div class="modal-event ${e.cls}">${esc(e.msg)}</div>`).join('');
+
+  document.getElementById('mFooter').innerHTML =
+    `<span>Brake event captured at cycle <b style="color:var(--accent)">${String(cycleN).padStart(4,'0')}</b></span>` +
+    `<span>Safety layer is SOVEREIGN — override cannot be bypassed</span>`;
+
+  document.getElementById('brakeModal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('brakeModal').classList.remove('open');
+}
+
+document.getElementById('brakeModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+function kvRows(rows) {
+  return rows.map(([k, v, cls]) =>
+    `<div class="modal-kv-row"><span class="k">${esc(k)}</span><span class="v ${cls||''}">${esc(v)}</span></div>`
+  ).join('');
+}
+
+// ══════════════════════════════════════════════════════════
+//  Brake controls
+// ══════════════════════════════════════════════════════════
+let brakeHeld = false;
+
+function brakePress() {
+  brakeHeld = true;
+  document.getElementById('btnBrake').classList.add('pressed');
+  const pressure = parseInt(document.getElementById('brakePressure').value) / 100;
+  send({ action: 'brake_press', pressure });
+
+  // Inject brake event into timeline immediately (visual feedback even without server)
+  const t = now();
+  appendBusEvents([
+    {bus:'BRAKE', id:'BRAKE_PRESS', dir:'CMD', data:{pressure: pressure.toFixed(2), source:'DASHBOARD'}, ts: Date.now()/1000},
+    {bus:'CAN', id:'0x201', dir:'TX', data:{brake: pressure.toFixed(2), override:true}, ts: Date.now()/1000},
+    {bus:'SAFETY', id:'SAFETY_LAYER', dir:'SAF', data:{action:'BRAKE_OVERRIDE', throttle:0}, ts: Date.now()/1000},
+  ]);
+}
+
+function brakeRelease() {
+  if (!brakeHeld) return;
+  brakeHeld = false;
+  document.getElementById('btnBrake').classList.remove('pressed');
+  send({ action: 'brake_release' });
+  appendBusEvents([
+    {bus:'BRAKE', id:'BRAKE_RELEASE', dir:'CMD', data:{pressure:0.00, source:'DASHBOARD'}, ts: Date.now()/1000},
+    {bus:'CAN',   id:'0x201',         dir:'TX',  data:{brake:'0.00'}, ts: Date.now()/1000},
+  ]);
+
+  // Auto-open modal after brake release with last state
+  setTimeout(() => {
+    if (Object.keys(lastState).length) openBrakeModal();
+  }, 300);
+}
+
+function updateBrakeLbl(v) {
+  document.getElementById('brakePressureVal').textContent = (parseInt(v)/100).toFixed(2);
+}
+
+// ══════════════════════════════════════════════════════════
+//  Cruise & speed controls
+// ══════════════════════════════════════════════════════════
+function cruiseOn() {
+  const speed = parseInt(document.getElementById('targetSpeed').value);
+  send({ action: 'cruise_on', target_speed: speed });
+  document.getElementById('btnCruiseOn').classList.add('active');
+  document.getElementById('btnCruiseOff').classList.remove('active');
+}
+function cruiseOff() {
+  send({ action: 'cruise_off' });
+  document.getElementById('btnCruiseOn').classList.remove('active');
+  document.getElementById('btnCruiseOff').classList.add('active');
+}
+function applySpeed() {
+  send({ action: 'set_target_speed', value: parseInt(document.getElementById('targetSpeed').value) });
+}
+
+let _wsWarned = false;
+function send(cmd) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(cmd));
+  } else if (!_wsWarned) {
+    _wsWarned = true;
+    console.warn('AZIZA: WebSocket is not connected. Start the simulation (python main.py) and open http://127.0.0.1:8765 — not the HTML file directly.');
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  Log feed
+// ══════════════════════════════════════════════════════════
+const logBuf = [];
+const LOG_MAX = 300;
+
+function appendLog(lines) {
+  if (!lines || !lines.length) return;
+  const feed = document.getElementById('logFeed');
+  const atBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 40;
+
+  lines.forEach(l => {
+    logBuf.push(l);
+    if (logBuf.length > LOG_MAX) logBuf.shift();
+  });
+
+  feed.innerHTML = logBuf.map(line => {
+    let c = 'll';
+    if (line.includes('[CAN]'))    c += ' can';
+    else if (line.includes('[LIN]'))    c += ' lin';
+    else if (line.includes('[ENGINE]')) c += ' engine';
+    else if (line.includes('[BRAKE]'))  c += ' brake';
+    else if (line.includes('[SAFETY]')) c += ' safety';
+    else if (line.includes('[AI]'))     c += ' ai';
+    else if (line.includes('[AZIZA]'))  c += ' aziza';
+    else if (line.includes('[SENSOR]')) c += ' sensor';
+    else if (line.includes('[BODY]'))   c += ' body';
+    return `<div class="${c}">${esc(line)}</div>`;
+  }).join('');
+
+  if (atBottom) feed.scrollTop = feed.scrollHeight;
+}
+
+// ══════════════════════════════════════════════════════════
+//  Chart
+// ══════════════════════════════════════════════════════════
+const HIST = 60;
+const hist = {
+  speed:    Array(HIST).fill(null),
+  temp:     Array(HIST).fill(null),
+  brake:    Array(HIST).fill(null),
+  throttle: Array(HIST).fill(null),
+};
+
+let chart = null;
+
+function pushHistory(speed, temp, brake, throttle) {
+  ['speed','temp','brake','throttle'].forEach(k => {
+    hist[k].push(arguments[['speed','temp','brake','throttle'].indexOf(k)]);
+    if (hist[k].length > HIST) hist[k].shift();
+  });
+  if (chart) {
+    chart.data.datasets[0].data = [...hist.speed];
+    chart.data.datasets[1].data = [...hist.temp];
+    chart.data.datasets[2].data = [...hist.brake];
+    chart.data.datasets[3].data = [...hist.throttle];
+    chart.update('none');
+  }
+}
+
+function initChart() {
+  if (typeof Chart === 'undefined') { setTimeout(initChart, 200); return; }
+  const ctx = document.getElementById('chartMain').getContext('2d');
+  Chart.defaults.color = '#3d5567';
+  Chart.defaults.borderColor = '#1a2835';
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: Array(HIST).fill(''),
+      datasets: [
+        { label: 'Speed (km/h)',    data: [...hist.speed],    borderColor: '#00d4ff', backgroundColor:'rgba(0,212,255,.05)', borderWidth:1.5, pointRadius:0, tension:.4, fill:true },
+        { label: 'Temp (°C)',       data: [...hist.temp],     borderColor: '#ff6b00', backgroundColor:'rgba(255,107,0,.04)', borderWidth:1.5, pointRadius:0, tension:.4, fill:false },
+        { label: 'Brake ×150',      data: [...hist.brake],    borderColor: '#ff2a2a', backgroundColor:'rgba(255,42,42,.04)', borderWidth:1,   pointRadius:0, tension:.3, fill:false },
+        { label: 'Throttle ×150',   data: [...hist.throttle], borderColor: '#00e676', backgroundColor:'rgba(0,230,118,.03)', borderWidth:1,   pointRadius:0, tension:.4, fill:false },
+      ]
+    },
+    options: {
+      responsive:true, animation:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ labels:{ color:'#3d5567', font:{family:"'Share Tech Mono'",size:9}, boxWidth:10 } },
+        tooltip:{ backgroundColor:'#0c1117', borderColor:'#1a2835', borderWidth:1,
+          titleFont:{family:"'Share Tech Mono'",size:9}, bodyFont:{family:"'Share Tech Mono'",size:9} }
+      },
+      scales:{
+        x:{ ticks:{display:false}, grid:{color:'#111820'} },
+        y:{ min:0, max:160,
+          ticks:{ color:'#3d5567', font:{family:"'Share Tech Mono'",size:8}, stepSize:40 },
+          grid:{ color:'#111820' } }
+      }
+    }
+  });
+}
+
+
+// ══════════════════════════════════════════════════════════
+//  Car Control — Windows, Lights, Door Locks
+// ══════════════════════════════════════════════════════════
+
+// -- Windows --
+// Track local desired state so buttons light up correctly
+const winDesired = {0: 0, 1: 0, 2: 0, 3: 0};  // 0=stop 1=up 2=down
+const WIN_KEYS = ['win_FL','win_FR','win_RL','win_RR'];
+const WIN_SPEED_PCT = 70;
+function windowStep() {
+  return Math.max(10, Math.min(40, Math.floor(WIN_SPEED_PCT / 2)));
+}
+
+function winCmd(win, direction) {
+  winDesired[win] = direction;
+  // Highlight active button
+  const card = document.getElementById('wcard-' + win);
+  if (card) {
+    card.querySelectorAll('.win-btn').forEach((b, i) => {
+      b.classList.toggle('active', [1,0,2][i] === direction);
+    });
+  }
+  // Optimistic % + car outline (matches server window step)
+  const key = WIN_KEYS[win];
+  let pos = Number(lastState[key]);
+  if (!Number.isFinite(pos)) {
+    const t = document.getElementById('wpct-' + win);
+    pos = t ? parseInt(t.textContent, 10) : 0;
+    if (!Number.isFinite(pos)) pos = 0;
+  }
+  const step = windowStep();
+  if (direction === 1) pos = Math.max(0, pos - step);
+  else if (direction === 2) pos = Math.min(100, pos + step);
+  lastState[key] = pos;
+  updateWindowUI(lastState);
+
+  send({ action: 'window_cmd', window: win, direction: direction, speed_pct: WIN_SPEED_PCT });
+  // Inject CAN event into timeline
+  const dirName = ['STOP','UP','DOWN'][direction];
+  const winName = ['FL','FR','RL','RR'][win];
+  appendBusEvents([
+    {bus:'CAN', id:'0x300', dir:'TX', data:{win: winName, dir: dirName}, ts: Date.now()/1000},
+    {bus:'LIN', id:'LIN_WINDOWS', dir:'REQ', data:{win: winName, dir: dirName, speed: String(WIN_SPEED_PCT) + '%'}, ts: Date.now()/1000},
+  ]);
+}
+
+function updateWindowUI(s) {
+  const keys = ['win_FL','win_FR','win_RL','win_RR'];
+  keys.forEach((k, i) => {
+    const pos = s[k] !== undefined ? s[k] : 0;
+    const bar = document.getElementById('wbar-' + i);
+    const pct = document.getElementById('wpct-' + i);
+    if (bar) bar.style.width = pos + '%';
+    if (pct) pct.textContent = pos + '%';
+    const fill = document.getElementById('viz-win-' + i);
+    if (fill) fill.style.height = pos + '%';
+  });
+}
+
+// -- Lights --
+const lightMaskMap = {
+  'li-head': 1,  'li-int': 2,  'li-haz': 4,  'li-fog': 8,
+};
+const lightStateMap = {};  // elemId → current state string
+
+/** Update list row + bulb + lastState for any combination of light bits */
+function applyLightPreviewFromMask(mask, stateStr) {
+  const rows = [
+    [1,  'li-head', 'ls-head', 'light_headlights', 'viz-bulb-head'],
+    [2,  'li-int',  'ls-int',  'light_interior',   'viz-bulb-int'],
+    [4,  'li-haz',  'ls-haz',  'light_hazard',     'viz-bulb-haz'],
+    [8,  'li-fog',  'ls-fog',  'light_fog',        'viz-bulb-fog'],
+  ];
+  for (let i = 0; i < rows.length; i++) {
+    const bit = rows[i][0];
+    if (!(mask & bit)) continue;
+    const id = rows[i][1], sid = rows[i][2], skey = rows[i][3], vid = rows[i][4];
+    const elem = document.getElementById(id);
+    const stEl = document.getElementById(sid);
+    if (stEl) stEl.textContent = stateStr;
+    lightStateMap[id] = stateStr;
+    lastState[skey] = stateStr;
+    if (elem) {
+      elem.classList.remove('on', 'dim');
+      if (stateStr === 'ON') elem.classList.add('on');
+      if (stateStr === 'DIM') elem.classList.add('dim');
+    }
+    const vb = document.getElementById(vid);
+    if (vb) {
+      vb.classList.remove('on', 'dim');
+      if (stateStr === 'ON') vb.classList.add('on');
+      if (stateStr === 'DIM') vb.classList.add('dim');
+    }
+  }
+  const cabin = document.getElementById('viz-cabin');
+  if (cabin && (mask & 2)) {
+    cabin.classList.toggle('int-on', stateStr === 'ON' || stateStr === 'DIM');
+  }
+  if (mask & 4) {
+    const circuit = document.getElementById('ccViz');
+    if (circuit) circuit.classList.toggle('haz-on', stateStr === 'ON' || stateStr === 'DIM');
+  }
+}
+
+function toggleLight(mask, elemId) {
+  const current = lightStateMap[elemId] || 'OFF';
+  const nextState = current === 'OFF' ? 1 : 0;  // 1=ON 0=OFF
+  const stateStr = nextState === 1 ? 'ON' : 'OFF';
+  applyLightPreviewFromMask(mask, stateStr);
+  send({ action: 'light_cmd', mask: mask, state: nextState });
+  const lightName = {1:'HEAD',2:'INTERIOR',4:'HAZARD',8:'FOG'}[mask] || '?';
+  appendBusEvents([
+    {bus:'CAN', id:'0x310', dir:'TX', data:{mask: '0x'+mask.toString(16), state: stateStr}, ts: Date.now()/1000},
+    {bus:'LIN', id:'LIN_LIGHTS', dir:'REQ', data:{light: lightName, state: stateStr}, ts: Date.now()/1000},
+  ]);
+}
+
+function allLightsOn() {
+  applyLightPreviewFromMask(15, 'ON');
+  send({ action: 'light_cmd', mask: 15, state: 1 });
+  appendBusEvents([
+    {bus:'CAN', id:'0x310', dir:'TX', data:{mask:'0xF', state:'ON'}, ts: Date.now()/1000},
+    {bus:'LIN', id:'LIN_LIGHTS', dir:'REQ', data:{light:'ALL', state:'ON'}, ts: Date.now()/1000},
+  ]);
+}
+function allLightsOff() {
+  applyLightPreviewFromMask(15, 'OFF');
+  send({ action: 'light_cmd', mask: 15, state: 0 });
+  appendBusEvents([
+    {bus:'CAN', id:'0x310', dir:'TX', data:{mask:'0xF', state:'OFF'}, ts: Date.now()/1000},
+    {bus:'LIN', id:'LIN_LIGHTS', dir:'REQ', data:{light:'ALL', state:'OFF'}, ts: Date.now()/1000},
+  ]);
+}
+
+function updateLightUI(s) {
+  const lights = [
+    { id:'li-head', stateId:'ls-head', key:'light_headlights', viz:'viz-bulb-head' },
+    { id:'li-int',  stateId:'ls-int',  key:'light_interior',   viz:'viz-bulb-int'  },
+    { id:'li-haz',  stateId:'ls-haz',  key:'light_hazard',     viz:'viz-bulb-haz'  },
+    { id:'li-fog',  stateId:'ls-fog',  key:'light_fog',        viz:'viz-bulb-fog'  },
+  ];
+  lights.forEach(({ id, stateId, key, viz }) => {
+    const state = (s[key] || 'OFF').toUpperCase();
+    const elem  = document.getElementById(id);
+    const stateEl = document.getElementById(stateId);
+    if (elem) {
+      elem.classList.remove('on', 'dim');
+      if (state === 'ON')  elem.classList.add('on');
+      if (state === 'DIM') elem.classList.add('dim');
+    }
+    if (stateEl) stateEl.textContent = state;
+    lightStateMap[id] = state;
+    const vb = document.getElementById(viz);
+    if (vb) {
+      vb.classList.remove('on', 'dim');
+      if (state === 'ON')  vb.classList.add('on');
+      if (state === 'DIM') vb.classList.add('dim');
+    }
+  });
+  const cabin = document.getElementById('viz-cabin');
+  if (cabin) {
+    const intSt = (s.light_interior || 'OFF').toUpperCase();
+    cabin.classList.toggle('int-on', intSt === 'ON' || intSt === 'DIM');
+  }
+  const circuit = document.getElementById('ccViz');
+  if (circuit) {
+    const hz = (s.light_hazard || 'OFF').toUpperCase();
+    circuit.classList.toggle('haz-on', hz === 'ON' || hz === 'DIM');
+  }
+}
+
+// -- Door Locks --
+function doorCmd(doors, command) {
+  const locked = command === 1;
+  [['FL',1],['FR',2],['RL',4],['RR',8]].forEach(function (pair) {
+    var d = pair[0], bit = pair[1];
+    if (doors & bit) lastState['door_' + d] = locked;
+  });
+  lastState.all_locked = ['FL','FR','RL','RR'].every(function (d) {
+    return lastState['door_' + d] !== false;
+  });
+  updateDoorUI(lastState);
+
+  send({ action: 'door_lock_cmd', doors: doors, command: command });
+  const cmdName = command === 1 ? 'LOCK' : 'UNLOCK';
+  appendBusEvents([
+    {bus:'CAN', id:'0x320', dir:'TX', data:{doors:'0x'+doors.toString(16), cmd: cmdName}, ts: Date.now()/1000},
+    {bus:'LIN', id:'LIN_DOOR_LOCK', dir:'REQ', data:{doors:'0x'+doors.toString(16), cmd: cmdName}, ts: Date.now()/1000},
+  ]);
+}
+
+function updateDoorUI(s) {
+  const doors = ['FL','FR','RL','RR'];
+  doors.forEach(d => {
+    const locked  = s['door_' + d] !== false;  // default to locked if missing
+    const card    = document.getElementById('dcard-' + d);
+    const stateEl = document.getElementById('ds-' + d);
+    const vizDoor = document.getElementById('viz-door-' + d);
+    if (card) {
+      card.classList.toggle('locked',   locked);
+      card.classList.toggle('unlocked', !locked);
+      card.querySelector('.di-icon').textContent = locked ? '🔒' : '🔓';
+    }
+    if (stateEl) {
+      stateEl.textContent  = locked ? 'LOCKED' : 'UNLOCKED';
+      stateEl.className    = 'di-state ' + (locked ? 'locked' : 'unlocked');
+    }
+    if (vizDoor) {
+      vizDoor.classList.toggle('locked',   locked);
+      vizDoor.classList.toggle('unlocked', !locked);
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+//  Boot
+// ══════════════════════════════════════════════════════════
+initChart();
+connect();
+</script>
+</body>
+</html>
