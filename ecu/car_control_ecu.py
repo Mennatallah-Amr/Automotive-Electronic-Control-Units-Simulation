@@ -40,6 +40,9 @@ class CarControlECU:
             "mode": config.GEAR_PARK,
             "last_change_ts": 0.0,
         }
+        self.steering = {
+            "angle_deg": 0.0,
+        }
 
         # --- Commands from external system (server / UI) ---
         self._commands = []
@@ -104,6 +107,12 @@ class CarControlECU:
         self.gearbox["mode"] = mode
         self.lin_bus_request(config.LIN_SLAVE_GEARBOX, {"mode": mode})
 
+    def command_steering(self, angle_deg: float):
+        mx = float(getattr(config, "STEERING_ANGLE_MAX_DEG", 540.0))
+        a = max(-mx, min(mx, float(angle_deg)))
+        self.steering["angle_deg"] = a
+        self.lin_bus_request(config.LIN_SLAVE_STEERING, {"angle_deg": a})
+
     # ========================================================
     # CAN MESSAGE PROCESSING
     # ========================================================
@@ -163,6 +172,7 @@ class CarControlECU:
             "lights": self.lights,
             "door_locks": self.door_locks,
             "gearbox": self.gearbox,
+            "steering": self.steering,
         }
 
     # ========================================================
