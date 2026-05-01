@@ -153,6 +153,7 @@ class AZIZASimulation:
             lgt       = cc.get("lights",     {})
             locks     = cc.get("door_locks", {})
             gbx       = cc.get("gearbox",    {})
+            strg      = cc.get("steering",   {})
 
             dashboard_state = {
                 **approved_state,
@@ -178,6 +179,7 @@ class AZIZASimulation:
                 "door_RR":  locks.get("RR",  True),
                 "all_locked": locks.get("all_locked", True),
                 "gear_mode": gbx.get("mode", "P"),
+                "steer_angle": float(strg.get("angle_deg", 0.0)),
                 "cycle":      self._cycle,
             }
             self.server.push_state(dashboard_state, self._log.drain())
