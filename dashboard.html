@@ -213,6 +213,90 @@ header {
 .btn:hover { border-color:var(--accent); color:var(--accent); background:rgba(0,212,255,.06); }
 .btn.active { border-color:var(--ok); color:var(--ok); background:rgba(0,230,118,.07); }
 
+/* ── Steering wheel ── */
+.steering-wheel-host {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:6px;
+  margin-bottom:2px;
+}
+.steering-wheel {
+  width:min(196px, 100%);
+  max-width:220px;
+  aspect-ratio:1;
+  border-radius:50%;
+  touch-action:none;
+  cursor:grab;
+  user-select:none;
+  -webkit-user-select:none;
+  filter:drop-shadow(0 8px 22px rgba(0,0,0,.55));
+  background:radial-gradient(circle at 50% 42%, rgba(255,255,255,.04), transparent 50%),
+    radial-gradient(circle at 50% 50%, #0a0c10, #050608);
+  border:1px solid var(--border2);
+}
+.steering-wheel.dragging { cursor:grabbing; }
+.steering-svg {
+  width:100%;
+  height:100%;
+  display:block;
+}
+/* Classic 4-spoke: matte black body */
+.steering-matte {
+  fill:#121418;
+  stroke:#1e252d;
+  stroke-width:0.6;
+  stroke-linejoin:round;
+}
+.steering-rim-outer {
+  fill:none;
+  stroke:#161a20;
+  stroke-width:11;
+  stroke-linecap:round;
+}
+.steering-rim-highlight {
+  fill:none;
+  stroke:rgba(255,255,255,.06);
+  stroke-width:1.5;
+  opacity:.9;
+}
+.steering-rim-notch {
+  fill:var(--accent);
+  opacity:.92;
+  filter:drop-shadow(0 0 3px rgba(0,212,255,.45));
+}
+.steering-emblem-ring {
+  fill:url(#steering-chrome-grad);
+  stroke:#2a3038;
+  stroke-width:0.35;
+}
+.steering-emblem-inner {
+  fill:#0a0b0e;
+}
+.steering-emblem-icon {
+  fill:#1a1d24;
+  opacity:.95;
+}
+.steering-readout {
+  font-family:var(--mono);
+  font-size:.72rem;
+  color:var(--accent);
+  text-align:center;
+  letter-spacing:.06em;
+}
+.steer-hint {
+  display:block;
+  font-size:.55rem;
+  color:var(--dim);
+  letter-spacing:.08em;
+  margin-top:2px;
+  text-transform:uppercase;
+}
+.cc-car#cc-car-yaw {
+  transition:transform 0.35s ease;
+  transform-origin:center center;
+}
+
 /* ── BRAKE BUTTON ── */
 #btnBrake {
   width:100%; padding:14px; margin:0 0 8px 0;
@@ -898,6 +982,79 @@ hr.div { border:none; border-top:1px solid var(--border); margin:14px 0; }
       <div class="p-head"><span class="label">Control Panel</span></div>
       <div class="p-body">
 
+        <!-- Steering -->
+        <div class="control-block">
+          <span class="label" style="display:block;margin-bottom:8px">Steering</span>
+          <div class="steering-wheel-host">
+            <div class="steering-wheel" id="steeringWheelEl" tabindex="0" role="slider"
+              aria-label="Steering angle" aria-valuemin="-540" aria-valuemax="540" aria-valuenow="0">
+              <svg class="steering-svg" viewBox="0 0 200 200" aria-hidden="true">
+                <defs>
+                  <linearGradient id="steering-chrome-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#e8ecf0"/>
+                    <stop offset="35%" stop-color="#9aa3ad"/>
+                    <stop offset="55%" stop-color="#d4dae0"/>
+                    <stop offset="100%" stop-color="#7a8490"/>
+                  </linearGradient>
+                </defs>
+                <g id="steeringWheelRot" transform="rotate(0 100 100)">
+                  <circle class="steering-rim-outer" cx="100" cy="100" r="81"/>
+                  <circle class="steering-rim-highlight" cx="100" cy="100" r="75.5"/>
+                  <path class="steering-rim-notch" d="M97 19 h6 l-1.5 14 h-3 z"/>
+                  <!-- Hub: wider at top, tapers down (classic 4-spoke center) -->
+                  <path class="steering-matte" d="
+                    M 100 71
+                    C 112 71 118 75 119 84
+                    L 118 94
+                    L 116 112
+                    L 112 120
+                    L 100 126
+                    L 88 120
+                    L 84 112
+                    L 82 94
+                    L 81 84
+                    C 82 75 88 71 100 71 Z"/>
+                  <!-- 9 o'clock spoke (thick at hub, to rim) -->
+                  <path class="steering-matte" d="
+                    M 84 94 L 82 112 L 28 110 L 24 100 L 28 90 Z"/>
+                  <!-- 3 o'clock spoke -->
+                  <path class="steering-matte" d="
+                    M 116 94 L 172 90 L 176 100 L 172 110 L 116 112 Z"/>
+                  <!-- ~7 o'clock diagonal to rim -->
+                  <path class="steering-matte" d="
+                    M 88 120 L 100 126 L 72 168 L 54 158 L 84 118 Z"/>
+                  <!-- ~5 o'clock diagonal to rim -->
+                  <path class="steering-matte" d="
+                    M 112 120 L 100 126 L 132 168 L 148 154 Z"/>
+                  <circle class="steering-emblem-ring" cx="100" cy="100" r="11.5"/>
+                  <circle class="steering-emblem-inner" cx="100" cy="100" r="8.2"/>
+                  <path class="steering-emblem-icon" d="
+                    M 100 93.2
+                    c -3.8 0 -6.8 2.4 -7.6 5.8
+                    c 1.8 -2.8 4.8 -4.2 7.6 -4.2
+                    c 4.8 0 8.6 3.4 8.6 8.2
+                    c 0 3.8 -2.2 7 -5.4 8.6
+                    l -1.4 -1.8
+                    c 2.4 -1 4 -3.2 4 -5.8
+                    c 0 -3.2 -2.8 -5.8 -6.2 -5.8
+                    z
+                    M 96.8 103.6
+                    c 1.4 2.2 3.6 3.6 6.2 3.6
+                    l 0.7 -1.6
+                    c -2.2 -0.2 -4 -1.2 -5.2 -2.8 z"/>
+                </g>
+              </svg>
+            </div>
+            <div class="steering-readout">
+              <span id="steerAngleReadout">0°</span>
+              <span class="steer-hint">drag wheel · left / right</span>
+            </div>
+          </div>
+          <button type="button" class="btn" style="margin-top:4px;width:100%;font-size:.65rem;padding:6px" onclick="centerSteering()">Center wheel</button>
+        </div>
+
+        <hr class="div"/>
+
         <!-- BRAKE BUTTON -->
         <div class="control-block">
           <span class="label" style="display:block;margin-bottom:8px">Manual Brake</span>
@@ -982,7 +1139,7 @@ hr.div { border:none; border-top:1px solid var(--border); margin:14px 0; }
         <span class="label">Live outline</span>
         <div class="cc-viz-note">↑ front · taller cyan = window more open · door nudged = unlocked</div>
         <div class="cc-viz-wrap">
-          <div class="cc-car" aria-hidden="true">
+          <div class="cc-car" id="cc-car-yaw" aria-hidden="true">
             <div class="cc-car-front">front</div>
             <div class="cc-bulbs">
               <span class="cc-bulb" id="viz-bulb-head" title="Headlights"></span>
@@ -1350,6 +1507,17 @@ function updateDashboard(s) {
   updateDoorUI(s);
   updateGearboxUI(s);
 
+  const steerSrv = Number(s.steer_angle);
+  if (!steerDragActive() && Number.isFinite(steerSrv)) {
+    syncSteeringWheelFromServer(steerSrv);
+  }
+  const steerViz = steerDragActive() ? steerLocalDeg : (Number.isFinite(steerSrv) ? steerSrv : steerLocalDeg);
+  const carYaw = document.getElementById('cc-car-yaw');
+  if (carYaw) {
+    const yawDeg = Math.max(-16, Math.min(16, steerViz / 32));
+    carYaw.style.transform = 'rotate(' + yawDeg + 'deg)';
+  }
+
   // Build synthetic bus events from state if server doesn't send them
   // (fallback — real events come via msg.events)
   if (!_eventsThisCycle) {
@@ -1363,6 +1531,7 @@ function updateDashboard(s) {
       {bus:'CAN', id:'0x301', dir:'TX', data:{win_FL: s.win_FL||0, win_FR: s.win_FR||0, win_RL: s.win_RL||0, win_RR: s.win_RR||0}, ts: Date.now()/1000},
       {bus:'CAN', id:'0x311', dir:'TX', data:{head: s.light_headlights||'OFF', fog: s.light_fog||'OFF'}, ts: Date.now()/1000},
       {bus:'CAN', id:'0x321', dir:'TX', data:{locks: s.all_locked ? 'ALL_LOCKED' : 'SOME_OPEN'}, ts: Date.now()/1000},
+      {bus:'CAN', id:'0x341', dir:'TX', data:{steer_deg: (Number(s.steer_angle)||0).toFixed(1)}, ts: Date.now()/1000},
     ]);
   }
   _eventsThisCycle = false;
@@ -1639,6 +1808,132 @@ function openGearboxModal(prev, next) {
 
 function closeGearModal() {
   document.getElementById('gearModal').classList.remove('open');
+}
+
+// ══════════════════════════════════════════════════════════
+//  Steering wheel (drag to steer; CAN 0x340 / LIN LIN_EPS)
+// ══════════════════════════════════════════════════════════
+const STEER_MAX_DEG = 540;
+
+let steerLocalDeg = 0;
+let steerPointerId = null;
+let steerLastRad = 0;
+let steerSendTimer = null;
+
+function steerDragActive() {
+  return steerPointerId !== null;
+}
+
+function clampSteerDeg(v) {
+  return Math.max(-STEER_MAX_DEG, Math.min(STEER_MAX_DEG, v));
+}
+
+function steerPointerRad(el, clientX, clientY) {
+  const r = el.getBoundingClientRect();
+  const cx = r.left + r.width / 2;
+  const cy = r.top + r.height / 2;
+  return Math.atan2(clientY - cy, clientX - cx);
+}
+
+function unwrapDeltaRad(d) {
+  if (d > Math.PI) d -= 2 * Math.PI;
+  if (d < -Math.PI) d += 2 * Math.PI;
+  return d;
+}
+
+function applySteeringWheelVisual() {
+  const g = document.getElementById('steeringWheelRot');
+  if (g) g.setAttribute('transform', 'rotate(' + steerLocalDeg + ' 100 100)');
+  const ro = document.getElementById('steerAngleReadout');
+  if (ro) ro.textContent = Math.round(steerLocalDeg) + '°';
+  const el = document.getElementById('steeringWheelEl');
+  if (el) el.setAttribute('aria-valuenow', String(Math.round(steerLocalDeg)));
+}
+
+function syncSteeringWheelFromServer(deg) {
+  steerLocalDeg = clampSteerDeg(Number(deg) || 0);
+  applySteeringWheelVisual();
+}
+
+function scheduleSteeringSend() {
+  if (steerSendTimer) return;
+  steerSendTimer = setTimeout(function () {
+    steerSendTimer = null;
+    send({ action: 'steering_cmd', angle_deg: steerLocalDeg });
+  }, 90);
+}
+
+function flushSteeringSendTimer() {
+  if (steerSendTimer) {
+    clearTimeout(steerSendTimer);
+    steerSendTimer = null;
+  }
+}
+
+function emitSteeringBusEvents() {
+  appendBusEvents([
+    {bus:'CAN', id:'0x340', dir:'TX', data:{angle_deg: steerLocalDeg.toFixed(1)}, ts: Date.now()/1000},
+    {bus:'LIN', id:'LIN_EPS', dir:'REQ', data:{angle_deg: steerLocalDeg.toFixed(1), torque_assist:'ON'}, ts: Date.now()/1000},
+    {bus:'LIN', id:'LIN_EPS', dir:'RSP', data:{ack:'OK', rack_mm: (steerLocalDeg * 0.12).toFixed(2)}, ts: Date.now()/1000},
+  ]);
+}
+
+function endSteeringDrag(ev) {
+  if (steerPointerId === null) return;
+  if (ev && ev.pointerId !== undefined && ev.pointerId !== steerPointerId) return;
+  const wheel = document.getElementById('steeringWheelEl');
+  steerPointerId = null;
+  if (wheel) wheel.classList.remove('dragging');
+  flushSteeringSendTimer();
+  send({ action: 'steering_cmd', angle_deg: steerLocalDeg });
+  emitSteeringBusEvents();
+}
+
+function initSteeringControl() {
+  const wheel = document.getElementById('steeringWheelEl');
+  if (!wheel) return;
+
+  wheel.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    steerPointerId = e.pointerId;
+    steerLastRad = steerPointerRad(wheel, e.clientX, e.clientY);
+    wheel.classList.add('dragging');
+    try { wheel.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+
+  wheel.addEventListener('pointermove', function (e) {
+    if (steerPointerId !== e.pointerId) return;
+    const rad = steerPointerRad(wheel, e.clientX, e.clientY);
+    let d = unwrapDeltaRad(rad - steerLastRad);
+    steerLastRad = rad;
+    steerLocalDeg = clampSteerDeg(steerLocalDeg + d * (180 / Math.PI));
+    applySteeringWheelVisual();
+    const carYaw = document.getElementById('cc-car-yaw');
+    if (carYaw) {
+      const yawDeg = Math.max(-16, Math.min(16, steerLocalDeg / 32));
+      carYaw.style.transform = 'rotate(' + yawDeg + 'deg)';
+    }
+    scheduleSteeringSend();
+  });
+
+  wheel.addEventListener('pointerup', endSteeringDrag);
+  wheel.addEventListener('pointercancel', endSteeringDrag);
+  wheel.addEventListener('lostpointercapture', function (e) {
+    if (e.pointerId === steerPointerId) endSteeringDrag(e);
+  });
+}
+
+function centerSteering() {
+  steerLocalDeg = 0;
+  applySteeringWheelVisual();
+  flushSteeringSendTimer();
+  send({ action: 'steering_cmd', angle_deg: 0 });
+  const carYaw = document.getElementById('cc-car-yaw');
+  if (carYaw) carYaw.style.transform = 'rotate(0deg)';
+  appendBusEvents([
+    {bus:'CAN', id:'0x340', dir:'TX', data:{angle_deg:'0.0', cmd:'CENTER'}, ts: Date.now()/1000},
+    {bus:'LIN', id:'LIN_EPS', dir:'REQ', data:{angle_deg:0, cmd:'CENTER'}, ts: Date.now()/1000},
+  ]);
 }
 
 let _wsWarned = false;
@@ -1973,6 +2268,7 @@ function updateDoorUI(s) {
 //  Boot
 // ══════════════════════════════════════════════════════════
 initChart();
+initSteeringControl();
 connect();
 </script>
 </body>
