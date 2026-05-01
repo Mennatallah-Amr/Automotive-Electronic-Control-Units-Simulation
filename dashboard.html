@@ -32,7 +32,7 @@ body {
   color:var(--text);
   font-family:var(--sans);
   min-height:100vh;
-  overflow-x:hidden;
+  overflow:auto;
 }
 
 /* scanline texture */
@@ -105,6 +105,7 @@ header {
   gap:14px;
   padding:18px 20px;
   max-width:1500px;
+  min-width:1200px;
   margin:0 auto;
 }
 
@@ -578,12 +579,11 @@ hr.div { border:none; border-top:1px solid var(--border); margin:14px 0; }
   border-radius:1px; position:relative; overflow:hidden;
 }
 .viz-win-fill {
-  position:absolute; left:0; right:0; top:0;
-  height:45%;
+  position:absolute; left:0; right:0; bottom:0;
+  height:0%;
   background:linear-gradient(180deg,
     rgba(0,212,255,.2), rgba(0,212,255,.55));
-  transform:translateY(0%);
-  transition:transform .45s ease;
+  transition:height .45s ease;
 }
 .cc-cabin {
   flex:1; min-width:100px; max-width:140px;
@@ -696,9 +696,10 @@ hr.div { border:none; border-top:1px solid var(--border); margin:14px 0; }
   .hdr-sep { display:none; }
   .logo { font-size:1.35rem; letter-spacing:.16em; }
   .layout {
-    grid-template-columns:1fr;
-    gap:10px;
+    grid-template-columns:1fr 1fr 1fr;
+    gap:14px;
     padding:12px;
+    min-width:1200px;
   }
   .row-gauges { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; }
   .row-buses { grid-template-columns:1fr; }
@@ -1593,6 +1594,8 @@ function initChart() {
 // Track local desired state so buttons light up correctly
 const winDesired = {0: 0, 1: 0, 2: 0, 3: 0};  // 0=stop 1=up 2=down
 const WIN_KEYS = ['win_FL','win_FR','win_RL','win_RR'];
+const localWinPos = {0: 0, 1: 0, 2: 0, 3: 0}; // 0=open(no blue) .. 100=closed(full blue)
+let localWinInitialized = false;
 const WIN_SPEED_PCT = 70;
 function windowStep() {
   return Math.max(10, Math.min(40, Math.floor(WIN_SPEED_PCT / 2)));
@@ -1607,21 +1610,23 @@ function winCmd(win, direction) {
       b.classList.toggle('active', [1,0,2][i] === direction);
     });
   }
-  // Optimistic % + car outline (matches server window step)
+  // Full manual control: each press changes one step only.
   const key = WIN_KEYS[win];
-  let pos = Number(lastState[key]);
-  if (!Number.isFinite(pos)) {
-    const t = document.getElementById('wpct-' + win);
-    pos = t ? parseInt(t.textContent, 10) : 0;
-    if (!Number.isFinite(pos)) pos = 0;
-  }
+  let pos = Number(localWinPos[win]);
+  if (!Number.isFinite(pos)) pos = 0;
   const step = windowStep();
-  if (direction === 1) pos = Math.max(0, pos - step);
-  else if (direction === 2) pos = Math.min(100, pos + step);
+  if (direction === 1) pos = Math.min(100, pos + step); // UP increases %
+  else if (direction === 2) pos = Math.max(0, pos - step); // DOWN decreases %
+  localWinPos[win] = pos;
   lastState[key] = pos;
+  localWinInitialized = true;
   updateWindowUI(lastState);
 
   send({ action: 'window_cmd', window: win, direction: direction, speed_pct: WIN_SPEED_PCT });
+  // Immediately stop so motion stays stable and user-driven per click
+  if (direction !== 0) {
+    setTimeout(() => send({ action: 'window_cmd', window: win, direction: 0, speed_pct: WIN_SPEED_PCT }), 120);
+  }
   // Inject CAN event into timeline
   const dirName = ['STOP','UP','DOWN'][direction];
   const winName = ['FL','FR','RL','RR'][win];
@@ -1634,14 +1639,19 @@ function winCmd(win, direction) {
 function updateWindowUI(s) {
   const keys = ['win_FL','win_FR','win_RL','win_RR'];
   keys.forEach((k, i) => {
-    const pos = s[k] !== undefined ? s[k] : 0;
+    if (!localWinInitialized) {
+      const fromState = Number(s[k]);
+      localWinPos[i] = Number.isFinite(fromState) ? Math.max(0, Math.min(100, fromState)) : 0;
+    }
+    const pos = Math.max(0, Math.min(100, Number(localWinPos[i]) || 0));
     const bar = document.getElementById('wbar-' + i);
     const pct = document.getElementById('wpct-' + i);
     if (bar) bar.style.width = pos + '%';
     if (pct) pct.textContent = pos + '%';
     const fill = document.getElementById('viz-win-' + i);
-    if (fill) fill.style.transform = 'translateY(' + (pos * 0.55).toFixed(1) + '%)';
+    if (fill) fill.style.height = pos + '%';
   });
+  localWinInitialized = true;
 }
 
 // -- Lights --
