@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # ============================================================
 # AZIZA - Distributed Automotive ECU Simulation
 # main.py — Entry point and real-time simulation loop
@@ -151,6 +152,7 @@ class AZIZASimulation:
             win_pos   = cc.get("windows",    {}).get("positions", {})
             lgt       = cc.get("lights",     {})
             locks     = cc.get("door_locks", {})
+            gbx       = cc.get("gearbox",    {})
 
             dashboard_state = {
                 **approved_state,
@@ -175,6 +177,7 @@ class AZIZASimulation:
                 "door_RL":  locks.get("RL",  True),
                 "door_RR":  locks.get("RR",  True),
                 "all_locked": locks.get("all_locked", True),
+                "gear_mode": gbx.get("mode", "P"),
                 "cycle":      self._cycle,
             }
             self.server.push_state(dashboard_state, self._log.drain())
