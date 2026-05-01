@@ -10,7 +10,7 @@ import hashlib
 import base64
 import struct
 from pathlib import Path
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 from config import (
     CAN_ID_WINDOW_CMD, CAN_ID_LIGHT_CMD, CAN_ID_DOOR_LOCK_CMD,
@@ -120,6 +120,17 @@ class AZIZAServer:
                 self.wfile.write(header + payload)
                 self.wfile.flush()
 
+            def _ws_send_pong(self, payload=b""):
+                length = len(payload)
+                if length <= 125:
+                    header = bytes([0x8A, length])
+                elif length <= 65535:
+                    header = bytes([0x8A, 126]) + struct.pack(">H", length)
+                else:
+                    header = bytes([0x8A, 127]) + struct.pack(">Q", length)
+                self.wfile.write(header + payload)
+                self.wfile.flush()
+
             def _ws_recv(self):
                 try:
                     self.connection.settimeout(60)
@@ -138,6 +149,13 @@ class AZIZAServer:
                     if masked:
                         for i in range(len(data)):
                             data[i] ^= mask[i % 4]
+                    # Ping frame => respond with pong and continue.
+                    if opcode == 0x9:
+                        self._ws_send_pong(bytes(data))
+                        return ""
+                    # Pong or non-text frame => ignore payload.
+                    if opcode in (0xA, 0x2):
+                        return ""
                     return data.decode("utf-8")
                 except Exception:
                     return None
@@ -236,8 +254,8 @@ class AZIZAServer:
         _real_stdout = getattr(_sys.stdout, '_stdout', _sys.stdout)
 
         try:
-            HTTPServer.allow_reuse_address = True
-            self._server = HTTPServer(("0.0.0.0", self._port), self._make_handler())
+            ThreadingHTTPServer.allow_reuse_address = True
+            self._server = ThreadingHTTPServer(("0.0.0.0", self._port), self._make_handler())
         except OSError as e:
             _real_stdout.write(f"[SERVER] ERROR: Cannot bind to port {self._port} — {e}\n")
             _real_stdout.flush()
